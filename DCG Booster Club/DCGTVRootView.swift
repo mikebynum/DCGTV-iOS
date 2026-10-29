@@ -542,7 +542,6 @@ private struct DCGTVShowsScreen: View {
            .background(
                Color(uiColor: .systemGroupedBackground)
            )
-           .toolbar(.hidden, for: .navigationBar)
        }
    }
 }

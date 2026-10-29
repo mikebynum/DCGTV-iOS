@@ -16,6 +16,25 @@ struct DCGPlaylistVideo: Decodable, Identifiable {
         case id, title, thumbnail, url
         case publishedAt = "published_at"
     }
+
+    var publicationDate: Date? {
+        guard let publishedAt else { return nil }
+
+        let formatter = ISO8601DateFormatter()
+
+        formatter.formatOptions = [
+            .withInternetDateTime,
+            .withFractionalSeconds
+        ]
+
+        if let date = formatter.date(from: publishedAt) {
+            return date
+        }
+
+        formatter.formatOptions = [.withInternetDateTime]
+
+        return formatter.date(from: publishedAt)
+    }
 }
 
 // MARK: - Playlist API Response
@@ -40,7 +59,6 @@ private struct DCGPlaylistResponse: Decodable {
             forKey: .playlists
         )
 
-        // WordPress may return an empty array for errors.
         if let dictionary = try? container.decode(
             [String: String].self,
             forKey: .errors
@@ -92,7 +110,6 @@ private final class DCGPlaylistService: ObservableObject {
         }
 
         do {
-
             var request = URLRequest(url: endpoint)
             request.cachePolicy = .reloadIgnoringLocalCacheData
             request.timeoutInterval = 20
@@ -157,73 +174,47 @@ private struct SelectedPlaylistVideo: Identifiable {
     let url: URL
 }
 
-// MARK: - Playlist Sections
+// MARK: - Shows Tab Content
 
 struct DCGPlaylistSectionsView: View {
 
     @StateObject private var service = DCGPlaylistService()
 
-    // Tracks the selected episode for in-app playback.
     @State private var selectedVideo: SelectedPlaylistVideo?
 
     var body: some View {
 
-        VStack(alignment: .leading, spacing: 24) {
+        VStack(alignment: .leading, spacing: 16) {
 
-            playlistSection(
-                "Mustang Full Gallop",
-                key: "full_gallop",
-                symbol: "mic.fill"
-            )
-
-            playlistSection(
-                "Senior Spotlight",
-                key: "senior_spotlight",
-                symbol: "star.fill"
-            )
-        }
-        .task {
-            await service.refreshKeepingRequestAlive()
-        }
-
-        // Present the same browser used by Watch and replays.
-        .sheet(item: $selectedVideo) { video in
-
-            VideoBrowserView(url: video.url)
-                .ignoresSafeArea()
-        }
-    }
-
-    // MARK: - Playlist Section
-
-    private func playlistSection(
-        _ title: String,
-        key: String,
-        symbol: String
-    ) -> some View {
-
-        VStack(alignment: .leading, spacing: 12) {
-
-            Label(title, systemImage: symbol)
-                .font(.title2.bold())
-                .foregroundStyle(.primary)
-
-            // Loading
             if service.isLoading && service.lastUpdated == nil {
 
-                ProgressView("Loading videos...")
+                ProgressView("Loading DCGTV shows...")
                     .frame(maxWidth: .infinity)
                     .padding()
 
-            // Error
-            } else if let error =
-                        service.errors[key] ?? service.errors["general"],
-                      (service.playlists[key] ?? []).isEmpty {
+            } else {
 
-                VStack(alignment: .leading, spacing: 8) {
+                showCard(
+                    title: "Mustang Full Gallop",
+                    subtitle: "Football conversations and interviews",
+                    key: "full_gallop",
+                    symbol: "mic.fill"
+                )
 
-                    Text("Videos couldn't be loaded.")
-                        .font(.subheadline.bold())
+                showCard(
+                    title: "Senior Spotlight",
+                    subtitle: "Celebrating DCG senior athletes",
+                    key: "senior_spotlight",
+                    symbol: "star.fill"
+                )
+            }
+
+            if let error = service.errors["general"] {
+
+                VStack(alignment: .leading, spacing: 10) {
+
+                    Text("Unable to refresh shows")
+                        .font(.headline)
 
                     Text(error)
                         .font(.caption)
@@ -236,7 +227,7 @@ struct DCGPlaylistSectionsView: View {
                     }
                     .tint(Color.dcgRed)
                 }
-                .padding(14)
+                .padding(16)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(
                     Color(uiColor: .secondarySystemGroupedBackground)
@@ -244,111 +235,282 @@ struct DCGPlaylistSectionsView: View {
                 .clipShape(
                     RoundedRectangle(cornerRadius: 14)
                 )
-
-            // Empty playlist
-            } else if (service.playlists[key] ?? []).isEmpty {
-
-                Text("No public videos found in this playlist yet.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-
-            // Videos
-            } else {
-
-                ForEach(
-                    Array((service.playlists[key] ?? []).prefix(5))
-                ) { video in
-
-                    videoCard(video)
-                }
             }
+        }
+        .task {
+            await service.refreshKeepingRequestAlive()
+        }
+        .sheet(item: $selectedVideo) { video in
+            VideoBrowserView(url: video.url)
+                .ignoresSafeArea()
         }
     }
 
-    // MARK: - Video Card
+    // MARK: - Show Card
 
-    private func videoCard(
-        _ video: DCGPlaylistVideo
+    private func showCard(
+        title: String,
+        subtitle: String,
+        key: String,
+        symbol: String
     ) -> some View {
 
-        Button {
+        let videos = service.playlists[key] ?? []
 
-            guard let url = URL(string: video.url),
-                  ["https", "http"].contains(
-                      url.scheme?.lowercased() ?? ""
-                  )
-            else {
-                return
-            }
+        return NavigationLink {
 
-            selectedVideo = SelectedPlaylistVideo(url: url)
+            DCGShowEpisodesView(
+                title: title,
+                subtitle: subtitle,
+                symbol: symbol,
+                videos: videos,
+                errorMessage: service.errors[key],
+                onSelectVideo: openVideo
+            )
 
         } label: {
 
-            HStack(spacing: 12) {
+            HStack(spacing: 16) {
 
-                // Thumbnail
-                AsyncImage(
-                    url: URL(string: video.thumbnail)
-                ) { phase in
+                Image(systemName: symbol)
+                    .font(.system(size: 28))
+                    .foregroundStyle(Color.dcgRed)
+                    .frame(width: 60, height: 60)
+                    .background(
+                        Color.dcgRed.opacity(0.10)
+                    )
+                    .clipShape(
+                        RoundedRectangle(cornerRadius: 14)
+                    )
 
-                    if case .success(let image) = phase {
+                VStack(alignment: .leading, spacing: 6) {
 
-                        image
-                            .resizable()
-                            .scaledToFill()
-
-                    } else {
-
-                        Rectangle()
-                            .fill(Color.dcgRed.opacity(0.12))
-                            .overlay {
-
-                                Image(
-                                    systemName: "play.rectangle.fill"
-                                )
-                                .foregroundStyle(Color.dcgRed)
-                            }
-                    }
-                }
-                .frame(width: 120, height: 72)
-                .clipped()
-                .clipShape(
-                    RoundedRectangle(cornerRadius: 9)
-                )
-
-                // Episode information
-                VStack(alignment: .leading, spacing: 7) {
-
-                    Text(video.title)
-                        .font(.subheadline.bold())
+                    Text(title)
+                        .font(.headline)
                         .foregroundStyle(.primary)
-                        .lineLimit(3)
+
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                         .multilineTextAlignment(.leading)
 
-                    Label(
-                        "Watch Video",
-                        systemImage: "play.fill"
+                    Text(
+                        "\(videos.count) " +
+                        (videos.count == 1 ? "episode" : "episodes")
                     )
                     .font(.caption.bold())
                     .foregroundStyle(Color.dcgRed)
                 }
 
                 Spacer(minLength: 0)
+
+                Image(systemName: "chevron.right")
+                    .font(.subheadline.bold())
+                    .foregroundStyle(.secondary)
             }
-            .padding(12)
-            .frame(
-                maxWidth: .infinity,
-                alignment: .leading
-            )
+            .padding(16)
             .background(
                 Color(uiColor: .secondarySystemGroupedBackground)
             )
             .clipShape(
-                RoundedRectangle(cornerRadius: 14)
+                RoundedRectangle(cornerRadius: 16)
             )
         }
         .buttonStyle(.plain)
+    }
+
+    // MARK: - Open Video
+
+    private func openVideo(_ video: DCGPlaylistVideo) {
+
+        guard let url = URL(string: video.url),
+              let scheme = url.scheme?.lowercased(),
+              ["https", "http"].contains(scheme)
+        else {
+            return
+        }
+
+        selectedVideo = SelectedPlaylistVideo(url: url)
+    }
+}
+
+// MARK: - Dedicated Show Episode Page
+
+private struct DCGShowEpisodesView: View {
+
+    let title: String
+    let subtitle: String
+    let symbol: String
+    let videos: [DCGPlaylistVideo]
+    let errorMessage: String?
+    let onSelectVideo: (DCGPlaylistVideo) -> Void
+
+    private var sortedVideos: [DCGPlaylistVideo] {
+
+        videos.sorted {
+
+            ($0.publicationDate ?? .distantPast) >
+            ($1.publicationDate ?? .distantPast)
+        }
+    }
+
+    var body: some View {
+
+        ScrollView {
+
+            VStack(alignment: .leading, spacing: 20) {
+
+                // MARK: Show Header
+
+                HStack(spacing: 14) {
+
+                    Image(systemName: symbol)
+                        .font(.system(size: 30))
+                        .foregroundStyle(Color.dcgRed)
+                        .frame(width: 64, height: 64)
+                        .background(
+                            Color.dcgRed.opacity(0.10)
+                        )
+                        .clipShape(
+                            RoundedRectangle(cornerRadius: 16)
+                        )
+
+                    VStack(alignment: .leading, spacing: 6) {
+
+                        Text(title)
+                            .font(.title2.bold())
+
+                        Text(subtitle)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                // MARK: Episode Count
+
+                Text(
+                    "\(videos.count) " +
+                    (videos.count == 1 ? "Episode" : "Episodes")
+                )
+                .font(.headline)
+
+                // MARK: Episodes
+
+                if let errorMessage, videos.isEmpty {
+
+                    Text(errorMessage)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+
+                } else if videos.isEmpty {
+
+                    Text("No public episodes are available yet.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+
+                } else {
+
+                    LazyVStack(spacing: 12) {
+
+                        ForEach(sortedVideos) { video in
+
+                            Button {
+                                onSelectVideo(video)
+                            } label: {
+
+                                DCGShowEpisodeCard(video: video)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+            }
+            .padding(16)
+            .padding(.bottom, 35)
+        }
+        .background(
+            Color(uiColor: .systemGroupedBackground)
+        )
+        .navigationTitle(title)
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+// MARK: - Episode Card
+
+private struct DCGShowEpisodeCard: View {
+
+    let video: DCGPlaylistVideo
+
+    var body: some View {
+
+        HStack(alignment: .center, spacing: 12) {
+
+            AsyncImage(
+                url: URL(string: video.thumbnail)
+            ) { phase in
+
+                if case .success(let image) = phase {
+
+                    image
+                        .resizable()
+                        .scaledToFill()
+
+                } else {
+
+                    Rectangle()
+                        .fill(Color.dcgRed.opacity(0.12))
+                        .overlay {
+
+                            Image(systemName: "play.rectangle.fill")
+                                .font(.title2)
+                                .foregroundStyle(Color.dcgRed)
+                        }
+                }
+            }
+            .frame(width: 120, height: 72)
+            .clipped()
+            .clipShape(
+                RoundedRectangle(cornerRadius: 9)
+            )
+
+            VStack(alignment: .leading, spacing: 7) {
+
+                Text(video.title)
+                    .font(.subheadline.bold())
+                    .foregroundStyle(.primary)
+                    .lineLimit(3)
+                    .multilineTextAlignment(.leading)
+
+                if let date = video.publicationDate {
+
+                    Text(date, format: .dateTime
+                        .month(.abbreviated)
+                        .day()
+                        .year()
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
+
+                Label(
+                    "Watch Episode",
+                    systemImage: "play.fill"
+                )
+                .font(.caption.bold())
+                .foregroundStyle(Color.dcgRed)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            Color(uiColor: .secondarySystemGroupedBackground)
+        )
+        .clipShape(
+            RoundedRectangle(cornerRadius: 14)
+        )
     }
 }
 
