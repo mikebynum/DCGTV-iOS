@@ -11,7 +11,7 @@ import SwiftUI
 struct DCG_Booster_ClubApp: App {
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            DCGTVRootView()
         }
     }
 }

@@ -1,0 +1,23 @@
+# macOS
+.DS_Store
+
+# Xcode user settings
+xcuserdata/
+*.xcuserstate
+
+# Build output
+build/
+DerivedData/
+*.ipa
+*.dSYM
+*.dSYM.zip
+
+# Swift Package Manager
+.swiftpm/xcode/package.xcworkspace/xcuserdata/
+
+# Secrets and local configuration
+.env
+.env.*
+*.p12
+*.mobileprovision
+*.key
