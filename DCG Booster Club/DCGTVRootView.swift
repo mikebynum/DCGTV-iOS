@@ -238,20 +238,25 @@ private struct DCGTVHomeScreen: View {
                             )
                         }
                     }
-                }
 
-                // Curated livestreams hosted by away schools or other providers.
-                if let awayGame = nextAwayGame {
-                    VStack(alignment: .leading, spacing: 12) {
-                        HStack {
-                            Text("Away Game Streams")
-                                .font(.title2.bold())
-                            Spacer()
-                            Button("See All") { selectedTab = .watch }
-                                .font(.subheadline.bold())
-                                .tint(Color.dcgRed)
+                    // The matching game already includes its stream link.
+                    // Keep Home compact and send fans to Watch for the full list.
+                    if nextAwayGame != nil {
+                        Button {
+                            selectedTab = .watch
+                        } label: {
+                            HStack(spacing: 8) {
+                                Image(systemName: "play.rectangle.on.rectangle")
+                                Text("See All Away Streams")
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.caption)
+                            }
+                            .font(.subheadline.bold())
+                            .foregroundStyle(Color.dcgRed)
+                            .padding(.vertical, 6)
                         }
-                        DCGAwayGameStreamCard(game: awayGame)
+                        .buttonStyle(.plain)
                     }
                 }
 
