@@ -16,6 +16,7 @@ struct DCGTVRootView: View {
 
     @State private var selectedTab: DCGTVTab = .home
     @StateObject private var streams = StreamService()
+    @StateObject private var games = DCGGamesService()
 
     @Environment(\.scenePhase) private var scenePhase
 
@@ -25,6 +26,7 @@ struct DCGTVRootView: View {
 
             DCGTVHomeScreen(
                 streams: streams,
+                games: games,
                 selectedTab: $selectedTab
             )
             .tabItem {
@@ -38,7 +40,7 @@ struct DCGTVRootView: View {
                 }
                 .tag(DCGTVTab.watch)
 
-            DCGTVScheduleScreen(streams: streams)
+            DCGTVScheduleScreen(streams: streams, games: games)
                 .tabItem {
                     Label("Schedule", systemImage: "calendar")
                 }
@@ -53,11 +55,13 @@ struct DCGTVRootView: View {
         .tint(Color.dcgRed)
         .task {
             await streams.refreshKeepingRequestAlive()
+            await games.refreshKeepingRequestAlive()
         }
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active {
                 Task {
                     await streams.refreshKeepingRequestAlive()
+                    await games.refreshKeepingRequestAlive()
                 }
             }
         }
@@ -69,6 +73,7 @@ struct DCGTVRootView: View {
 private struct DCGTVHomeScreen: View {
 
     @ObservedObject var streams: StreamService
+    @ObservedObject var games: DCGGamesService
     @Binding var selectedTab: DCGTVTab
 
     private var featuredStream: DCGStream? {
@@ -131,6 +136,45 @@ private struct DCGTVHomeScreen: View {
                         .font(.subheadline.bold())
                     }
                     .tint(Color.dcgRed)
+                }
+
+                // Next three games from Bound, including games not streamed on DCGTV.
+                VStack(alignment: .leading, spacing: 12) {
+
+                    HStack {
+                        Text("Upcoming Mustang Games")
+                            .font(.title2.bold())
+                        Spacer()
+                        Button("See All") {
+                            selectedTab = .schedule
+                        }
+                        .font(.subheadline.bold())
+                        .tint(Color.dcgRed)
+                    }
+
+                    if games.isLoading && games.games.isEmpty {
+                        ProgressView("Loading games...")
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                    } else if games.games.isEmpty {
+                        emptyMessage(
+                            "No upcoming games found",
+                            subtitle: games.errorMessage ?? "Check the full schedule for updates."
+                        )
+                    } else {
+                        ForEach(Array(games.games.filter {
+                            ($0.startDate ?? .distantPast) >= Date()
+                        }.prefix(3))) { game in
+                            DCGGameCard(
+                                game: game,
+                                stream: DCGGameStreamMatcher.matchedStream(
+                                    for: game,
+                                    in: games.games,
+                                    broadcasts: streams.streams
+                                )
+                            )
+                        }
+                    }
                 }
 
                 // Watch DCGTV
@@ -205,6 +249,7 @@ private struct DCGTVHomeScreen: View {
         .background(Color(uiColor: .systemGroupedBackground))
         .refreshable {
             await streams.refreshKeepingRequestAlive(force: true)
+            await games.refreshKeepingRequestAlive()
         }
     }
 }
@@ -419,6 +464,7 @@ private struct DCGTVWatchScreen: View {
 private struct DCGTVScheduleScreen: View {
 
     @ObservedObject var streams: StreamService
+    @ObservedObject var games: DCGGamesService
 
     private var scheduled: [DCGStream] {
         streams.streams.filter {
@@ -435,7 +481,7 @@ private struct DCGTVScheduleScreen: View {
                 Text("Broadcast Schedule")
                     .font(.largeTitle.bold())
                 
-                DCGGamesScheduleView(streams: streams)
+                DCGGamesScheduleView(service: games, streams: streams)
 
                 Text("Upcoming DCGTV livestreams")
                     .foregroundStyle(.secondary)
