@@ -116,6 +116,7 @@ private final class DCGGamesService: ObservableObject {
 struct DCGGamesScheduleView: View {
 
     @StateObject private var service = DCGGamesService()
+    @ObservedObject var streams: StreamService
 
     @State private var selectedSport = "All Sports"
     @State private var selectedLevel = "All Levels"
@@ -148,6 +149,93 @@ struct DCGGamesScheduleView: View {
 
             return matchesSport && matchesLevel
         }
+    }
+
+    // Match only when the sport, opponent and start time agree. Ambiguous
+    // matches are deliberately skipped rather than linking the wrong game.
+    private func matchedStream(for game: DCGGame) -> DCGStream? {
+        let candidates = streams.streams.filter { matches(game: game, stream: $0) }
+        guard candidates.count == 1, let candidate = candidates.first else { return nil }
+
+        // The same broadcast must not be attached to several Bound events
+        // (for example, JV and varsity games against the same school).
+        let matchingGames = service.games.filter { matches(game: $0, stream: candidate) }
+        return matchingGames.count == 1 ? candidate : nil
+    }
+
+    private func matches(game: DCGGame, stream: DCGStream) -> Bool {
+        guard let gameDate = game.startDate,
+              let streamDate = stream.startDate,
+              abs(gameDate.timeIntervalSince(streamDate)) <= 3 * 60 * 60,
+              let opponent = opponentName(from: game.title)
+        else { return false }
+
+        let title = normalized(stream.title)
+        let team = normalized(opponent)
+        let sport = normalized(game.sport)
+        let coreSport = sport
+            .replacingOccurrences(of: "boys ", with: "")
+            .replacingOccurrences(of: "girls ", with: "")
+            .trimmingCharacters(in: .whitespaces)
+
+        guard team.count >= 4,
+              title.contains(team),
+              !coreSport.isEmpty,
+              title.contains(coreSport)
+        else { return false }
+
+        // Never attach a girls game to a boys broadcast or vice versa.
+        if sport.hasPrefix("boys ") && title.contains("girls ") { return false }
+        if sport.hasPrefix("girls ") && title.contains("boys ") { return false }
+
+        // A titled varsity stream must not attach to a JV or freshman game.
+        let level = normalized(game.level)
+        if title.contains("varsity") && level != "varsity" { return false }
+        if (title.contains("junior varsity") || title.contains(" jv ")) &&
+            level == "varsity" { return false }
+
+        return true
+    }
+
+    private func opponentName(from title: String) -> String? {
+        // Bound can list either team first. Resolve the non-DCG side rather
+        // than assuming the opponent always follows "vs".
+        let withoutSport = title.components(separatedBy: ":").dropFirst()
+            .joined(separator: ":")
+        let matchup = withoutSport.isEmpty ? title : withoutSport
+
+        let parts: [String]
+        if let range = matchup.range(of: " vs ", options: .caseInsensitive) {
+            parts = [String(matchup[..<range.lowerBound]),
+                     String(matchup[range.upperBound...])]
+        } else if let range = matchup.range(of: " at ", options: .caseInsensitive) {
+            parts = [String(matchup[..<range.lowerBound]),
+                     String(matchup[range.upperBound...])]
+        } else {
+            return nil
+        }
+
+        let teams = parts.map {
+            $0.components(separatedBy: "(").first?
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        }
+
+        func isDCG(_ team: String) -> Bool {
+            let value = normalized(team)
+            return value == "dcg" || value.contains("dallas center grimes")
+        }
+
+        guard teams.count == 2 else { return nil }
+        if isDCG(teams[0]) && !isDCG(teams[1]) { return teams[1] }
+        if isDCG(teams[1]) && !isDCG(teams[0]) { return teams[0] }
+        return nil
+    }
+
+    private func normalized(_ value: String) -> String {
+        value.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
     }
 
     var body: some View {
@@ -226,7 +314,7 @@ struct DCGGamesScheduleView: View {
                 LazyVStack(spacing: 12) {
 
                     ForEach(filteredGames) { game in
-                        DCGGameCard(game: game)
+                        DCGGameCard(game: game, stream: matchedStream(for: game))
                     }
                 }
 
@@ -262,6 +350,7 @@ struct DCGGamesScheduleView: View {
 private struct DCGGameCard: View {
 
     let game: DCGGame
+    let stream: DCGStream?
 
     var body: some View {
 
@@ -327,6 +416,25 @@ private struct DCGGameCard: View {
                 Text(status.capitalized)
                     .font(.caption.bold())
                     .foregroundStyle(.orange)
+            }
+
+            // Only display a broadcast button for a unique, verified match.
+            if let stream,
+               let streamURL = URL(string: stream.url),
+               streamURL.scheme?.lowercased() == "https" {
+
+                Link(destination: streamURL) {
+                    Label(
+                        stream.isLive ? "LIVE — Watch on DCGTV" : "Watch on DCGTV",
+                        systemImage: "play.rectangle.fill"
+                    )
+                    .font(.subheadline.bold())
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(12)
+                    .background(stream.isLive ? Color.red : Color.dcgRed)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                }
             }
 
             if let urlString = game.url,

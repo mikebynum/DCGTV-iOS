@@ -435,7 +435,7 @@ private struct DCGTVScheduleScreen: View {
                 Text("Broadcast Schedule")
                     .font(.largeTitle.bold())
                 
-                DCGGamesScheduleView()
+                DCGGamesScheduleView(streams: streams)
 
                 Text("Upcoming DCGTV livestreams")
                     .foregroundStyle(.secondary)
