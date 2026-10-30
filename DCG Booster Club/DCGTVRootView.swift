@@ -76,6 +76,30 @@ private struct DCGTVHomeScreen: View {
     @ObservedObject var games: DCGGamesService
     @Binding var selectedTab: DCGTVTab
 
+    @AppStorage("dcgtv.favoriteSports") private var favoriteSportsRaw = ""
+    @State private var showingSportPicker = false
+
+    private var favoriteSports: Set<String> {
+        Set(favoriteSportsRaw.split(separator: "|").map(String.init))
+    }
+
+    private var availableSports: [String] {
+        Array(Set(games.games.map(\.sport))).sorted()
+    }
+
+    private var prioritizedGames: [DCGGame] {
+        let favorites = favoriteSports
+        let upcoming = games.games.filter {
+            ($0.startDate ?? .distantPast) >= Date()
+        }
+        guard !favorites.isEmpty else { return Array(upcoming.prefix(3)) }
+
+        // Show favorites first, but still fill empty slots with other games.
+        let preferred = upcoming.filter { favorites.contains($0.sport) }
+        let remaining = upcoming.filter { !favorites.contains($0.sport) }
+        return Array((preferred + remaining).prefix(3))
+    }
+
     private var featuredStream: DCGStream? {
         streams.streams.first { stream in
             let title = stream.title.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -148,8 +172,8 @@ private struct DCGTVHomeScreen: View {
                 // Next three games from Bound, including games not streamed on DCGTV.
                 VStack(alignment: .leading, spacing: 12) {
 
-                    HStack {
-                        Text("Upcoming Mustang Games")
+                    HStack(alignment: .firstTextBaseline) {
+                        Text(favoriteSports.isEmpty ? "Upcoming Mustang Games" : "Your Mustang Games")
                             .font(.title2.bold())
                         Spacer()
                         Button("See All") {
@@ -157,6 +181,26 @@ private struct DCGTVHomeScreen: View {
                         }
                         .font(.subheadline.bold())
                         .tint(Color.dcgRed)
+                    }
+
+                    HStack {
+                        Button {
+                            showingSportPicker = true
+                        } label: {
+                            Label(
+                                favoriteSports.isEmpty ? "Choose Favorite Sports" : "Edit Favorite Sports",
+                                systemImage: "star"
+                            )
+                            .font(.subheadline.bold())
+                        }
+                        .tint(Color.dcgRed)
+
+                        Spacer()
+                        if !favoriteSports.isEmpty {
+                            Text("\(favoriteSports.count) selected")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                     }
 
                     if games.isLoading && games.games.isEmpty {
@@ -169,9 +213,7 @@ private struct DCGTVHomeScreen: View {
                             subtitle: games.errorMessage ?? "Check the full schedule for updates."
                         )
                     } else {
-                        ForEach(Array(games.games.filter {
-                            ($0.startDate ?? .distantPast) >= Date()
-                        }.prefix(3))) { game in
+                        ForEach(prioritizedGames) { game in
                             DCGHomeGameCard(
                                 game: game,
                                 stream: DCGGameStreamMatcher.matchedStream(
@@ -261,6 +303,95 @@ private struct DCGTVHomeScreen: View {
         .refreshable {
             await streams.refreshKeepingRequestAlive(force: true)
             await games.refreshKeepingRequestAlive()
+        }
+        .sheet(isPresented: $showingSportPicker) {
+            DCGFavoriteSportsPicker(
+                availableSports: availableSports,
+                favoritesRaw: $favoriteSportsRaw
+            )
+        }
+    }
+}
+
+// MARK: - Favorite Sports Picker
+// AppStorage saves selections on this device, without an account or backend.
+private struct DCGFavoriteSportsPicker: View {
+
+    let availableSports: [String]
+    @Binding var favoritesRaw: String
+    @Environment(\.dismiss) private var dismiss
+
+    private var selected: Set<String> {
+        Set(favoritesRaw.split(separator: "|").map(String.init))
+    }
+
+    private func toggle(_ sport: String) {
+        var updated = selected
+        if updated.contains(sport) {
+            updated.remove(sport)
+        } else {
+            updated.insert(sport)
+        }
+        favoritesRaw = updated.sorted().joined(separator: "|")
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    Text("Choose the Mustang sports you follow. Their upcoming games will appear first on Home. Other games will still fill remaining spots.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+
+                if availableSports.isEmpty {
+                    Section {
+                        Text("Sports will appear when the Bound schedule finishes loading.")
+                            .foregroundStyle(.secondary)
+                    }
+                } else {
+                    Section("Sports") {
+                        ForEach(availableSports, id: \.self) { sport in
+                            Button {
+                                toggle(sport)
+                            } label: {
+                                HStack {
+                                    Text(sport)
+                                        .foregroundStyle(.primary)
+                                    Spacer()
+                                    if selected.contains(sport) {
+                                        Image(systemName: "checkmark.circle.fill")
+                                            .foregroundStyle(Color.dcgRed)
+                                    } else {
+                                        Image(systemName: "circle")
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel(sport)
+                            .accessibilityValue(selected.contains(sport) ? "Favorite" : "Not favorite")
+                        }
+                    }
+                }
+
+                if !selected.isEmpty {
+                    Section {
+                        Button("Clear All Favorite Sports", role: .destructive) {
+                            favoritesRaw = ""
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Favorite Sports")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                        .tint(Color.dcgRed)
+                }
+            }
         }
     }
 }
