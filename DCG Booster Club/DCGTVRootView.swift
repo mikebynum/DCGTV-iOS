@@ -605,13 +605,10 @@ private struct DCGTVScheduleScreen: View {
 
             VStack(alignment: .leading, spacing: 18) {
 
-                Text("Broadcast Schedule")
-                    .font(.largeTitle.bold())
-                
                 DCGGamesScheduleView(service: games, streams: streams)
 
-                Text("Upcoming DCGTV livestreams")
-                    .foregroundStyle(.secondary)
+                Text("Upcoming DCGTV Livestreams")
+                    .font(.title2.bold())
 
                 if scheduled.isEmpty {
 
@@ -640,6 +637,7 @@ private struct DCGTVScheduleScreen: View {
         .background(Color(uiColor: .systemGroupedBackground))
         .refreshable {
             await streams.refreshKeepingRequestAlive(force: true)
+            await games.refreshKeepingRequestAlive()
         }
     }
 }
