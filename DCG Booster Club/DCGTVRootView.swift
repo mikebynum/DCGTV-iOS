@@ -18,6 +18,7 @@ struct DCGTVRootView: View {
     @StateObject private var streams = StreamService()
     @StateObject private var games = DCGGamesService()
     @StateObject private var results = DCGResultsService()
+    @State private var selectedGame: DCGGame?
 
     @Environment(\.scenePhase) private var scenePhase
 
@@ -29,6 +30,7 @@ struct DCGTVRootView: View {
                 streams: streams,
                 games: games,
                 results: results,
+                selectedGame: $selectedGame,
                 selectedTab: $selectedTab
             )
             .tabItem {
@@ -42,7 +44,12 @@ struct DCGTVRootView: View {
                 }
                 .tag(DCGTVTab.watch)
 
-            DCGTVScheduleScreen(streams: streams, games: games, results: results)
+            DCGTVScheduleScreen(
+                streams: streams,
+                games: games,
+                results: results,
+                selectedGame: $selectedGame
+            )
                 .tabItem {
                     Label("Schedule", systemImage: "calendar")
                 }
@@ -55,6 +62,19 @@ struct DCGTVRootView: View {
                 .tag(DCGTVTab.shows)
         }
         .tint(Color.dcgRed)
+        .sheet(item: $selectedGame) { game in
+            NavigationStack {
+                DCGGameDetailView(
+                    game: game,
+                    stream: DCGGameStreamMatcher.matchedStream(
+                        for: game,
+                        in: games.games,
+                        broadcasts: streams.streams
+                    ),
+                    result: results.results.first { $0.id == game.id }
+                )
+            }
+        }
         .task {
             await streams.refreshKeepingRequestAlive()
             await games.refreshKeepingRequestAlive()
@@ -79,6 +99,7 @@ private struct DCGTVHomeScreen: View {
     @ObservedObject var streams: StreamService
     @ObservedObject var games: DCGGamesService
     @ObservedObject var results: DCGResultsService
+    @Binding var selectedGame: DCGGame?
     @Binding var selectedTab: DCGTVTab
 
     @AppStorage("dcgtv.favoriteSports") private var favoriteSportsRaw = ""
@@ -234,7 +255,8 @@ private struct DCGTVHomeScreen: View {
                                     for: game,
                                     in: games.games,
                                     broadcasts: streams.streams
-                                )
+                                ),
+                                onShowDetails: { selectedGame = game }
                             )
                         }
                     }
@@ -441,6 +463,7 @@ private struct DCGHomeGameCard: View {
 
     let game: DCGGame
     let stream: DCGStream?
+    let onShowDetails: () -> Void
 
     private var cleanTitle: String {
         let text = game.title
@@ -463,14 +486,6 @@ private struct DCGHomeGameCard: View {
                 with: "DCG",
                 options: .caseInsensitive
             )
-    }
-
-    private var eventURL: URL? {
-        guard let text = game.url,
-              let url = URL(string: text),
-              url.scheme?.lowercased() == "https"
-        else { return nil }
-        return url
     }
 
     private var broadcastURL: URL? {
@@ -503,11 +518,15 @@ private struct DCGHomeGameCard: View {
                     .foregroundStyle(Color.dcgRed)
                     .lineLimit(1)
 
-                Text(cleanTitle)
-                    .font(.subheadline.bold())
-                    .foregroundStyle(.primary)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
+                Button(action: onShowDetails) {
+                    Text(cleanTitle)
+                        .font(.subheadline.bold())
+                        .foregroundStyle(.primary)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .buttonStyle(.plain)
 
                 if let date = game.startDate {
                     Text(date, format: .dateTime.hour().minute())
@@ -532,9 +551,7 @@ private struct DCGHomeGameCard: View {
                         }
                     }
 
-                    if let url = eventURL {
-                        Link("Game Details", destination: url)
-                    }
+                    Button("Game Details", action: onShowDetails)
                 }
                 .font(.caption.bold())
                 .foregroundStyle(Color.dcgRed)
@@ -807,6 +824,7 @@ private struct DCGTVScheduleScreen: View {
     @ObservedObject var streams: StreamService
     @ObservedObject var games: DCGGamesService
     @ObservedObject var results: DCGResultsService
+    @Binding var selectedGame: DCGGame?
     @State private var showingRecentResults = false
 
     private var scheduled: [DCGStream] {
@@ -834,7 +852,11 @@ private struct DCGTVScheduleScreen: View {
                         .foregroundStyle(Color.dcgRed)
                 }
 
-                DCGGamesScheduleView(service: games, streams: streams)
+                DCGGamesScheduleView(
+                    service: games,
+                    streams: streams,
+                    selectedGame: $selectedGame
+                )
 
                 Text("Upcoming DCGTV Livestreams")
                     .font(.title2.bold())

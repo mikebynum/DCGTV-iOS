@@ -160,6 +160,7 @@ struct DCGGamesScheduleView: View {
 
     @ObservedObject var service: DCGGamesService
     @ObservedObject var streams: StreamService
+    @Binding var selectedGame: DCGGame?
 
     @State private var selectedSport = "All Sports"
     @State private var selectedLevel = "All Levels"
@@ -324,7 +325,8 @@ struct DCGGamesScheduleView: View {
                                             for: game,
                                             in: service.games,
                                             broadcasts: streams.streams
-                                        )
+                                        ),
+                                        onShowDetails: { selectedGame = game }
                                     )
                                 }
                             }
@@ -361,6 +363,7 @@ struct DCGGameCard: View {
 
     let game: DCGGame
     let stream: DCGStream?
+    let onShowDetails: () -> Void
 
     // Shorten the repeated school prefix for DCG's own facilities only.
     // Leave other venues unchanged to avoid losing useful location context.
@@ -394,13 +397,14 @@ struct DCGGameCard: View {
                     .foregroundStyle(.secondary)
             }
 
-            Text(game.displayTitle)
-                .font(.headline)
-                .foregroundStyle(.primary)
-                .fixedSize(
-                    horizontal: false,
-                    vertical: true
-                )
+            Button(action: onShowDetails) {
+                Text(game.displayTitle)
+                    .font(.headline)
+                    .foregroundStyle(.primary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .buttonStyle(.plain)
 
             if let date = game.startDate {
 
@@ -480,24 +484,16 @@ struct DCGGameCard: View {
                 }
             }
 
-            if let urlString = game.url,
-               let url = URL(string: urlString),
-               url.scheme == "https" {
-
-                Link(destination: url) {
-
-                    HStack {
-
-                        Text("Game Details")
-
-                        Spacer()
-
-                        Image(systemName: "arrow.up.right")
-                    }
-                    .font(.caption.bold())
-                    .foregroundStyle(Color.dcgRed)
+            Button(action: onShowDetails) {
+                HStack {
+                    Text("Game Details")
+                    Spacer()
+                    Image(systemName: "chevron.right")
                 }
+                .font(.subheadline.bold())
+                .foregroundStyle(Color.dcgRed)
             }
+            .buttonStyle(.plain)
         }
         .padding(16)
         .frame(
@@ -510,6 +506,243 @@ struct DCGGameCard: View {
         .clipShape(
             RoundedRectangle(cornerRadius: 16)
         )
+    }
+}
+
+// MARK: - Native Game Details
+
+struct DCGGameDetailView: View {
+    let game: DCGGame
+    let stream: DCGStream?
+    let result: DCGResult?
+
+    @Environment(\.dismiss) private var dismiss
+
+    private var dcgtvURL: URL? {
+        guard let stream, let url = URL(string: stream.url),
+              url.scheme?.lowercased() == "https",
+              url.host != nil else { return nil }
+        return url
+    }
+
+    private var boundURL: URL? {
+        guard let text = game.url, let url = URL(string: text),
+              url.scheme?.lowercased() == "https",
+              url.host != nil else { return nil }
+        return url
+    }
+
+    private var externalURL: URL? {
+        game.externalStream?.validURL
+    }
+
+    private var venue: String? {
+        guard let location = game.location?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !location.isEmpty else { return nil }
+        let prefix = "Dallas Center-Grimes High School "
+        if location.range(of: prefix, options: [.anchored, .caseInsensitive]) != nil {
+            return String(location.dropFirst(prefix.count))
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return location
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 22) {
+                header
+                details
+
+                if let result, result.status.lowercased() == "final" {
+                    finalScore(result)
+                }
+
+                broadcasts
+                originalSource
+            }
+            .padding(18)
+            .padding(.bottom, 32)
+        }
+        .background(Color(uiColor: .systemGroupedBackground))
+        .navigationTitle("Game Details")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("Done") { dismiss() }
+                    .tint(Color.dcgRed)
+            }
+        }
+    }
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("\(game.sport) · \(game.level)", systemImage: "sportscourt.fill")
+                .font(.subheadline.bold())
+                .foregroundStyle(Color.dcgRed)
+
+            Text(game.displayTitle)
+                .font(.largeTitle.bold())
+                .fixedSize(horizontal: false, vertical: true)
+
+            if let status = game.status,
+               !status.isEmpty,
+               status.uppercased() != "CONFIRMED" {
+                Text(status.capitalized)
+                    .font(.caption.bold())
+                    .foregroundStyle(.orange)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var details: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Event Information")
+                .font(.headline)
+
+            if let date = game.startDate {
+                Label {
+                    Text(
+                        date,
+                        format: .dateTime
+                            .weekday(.wide)
+                            .month(.wide)
+                            .day()
+                            .year()
+                            .hour()
+                            .minute()
+                    )
+                } icon: {
+                    Image(systemName: "calendar")
+                }
+                .font(.subheadline)
+            }
+
+            if let venue {
+                Label(venue, systemImage: "mappin.and.ellipse")
+                    .font(.subheadline)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if game.startDate == nil && venue == nil {
+                Text("See Bound for event details.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .background(Color(uiColor: .secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+
+    private func finalScore(_ result: DCGResult) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Text("Final Score")
+                    .font(.headline)
+                Spacer()
+                Text(result.outcome == "W" ? "DCG WIN" : result.outcome == "L" ? "DCG LOSS" : "TIE")
+                    .font(.caption.bold())
+                    .foregroundStyle(Color.dcgRed)
+            }
+
+            HStack {
+                VStack(alignment: .leading, spacing: 14) {
+                    Text("DCG").font(.headline)
+                    Text(result.opponent).font(.headline)
+                }
+                Spacer()
+                VStack(alignment: .trailing, spacing: 14) {
+                    Text("\(result.dcgScore)").font(.title2.bold())
+                    Text("\(result.opponentScore)").font(.title2.bold())
+                }
+            }
+        }
+        .padding(16)
+        .background(Color(uiColor: .secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+
+    private var broadcasts: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Watch This Game")
+                .font(.title3.bold())
+
+            if let url = dcgtvURL, let stream {
+                Link(destination: url) {
+                    HStack {
+                        Label(
+                            stream.isLive ? "Watch Live on DCGTV" : "Watch on DCGTV",
+                            systemImage: "play.rectangle.fill"
+                        )
+                        Spacer()
+                        Image(systemName: "arrow.up.right")
+                    }
+                    .font(.subheadline.bold())
+                    .foregroundStyle(.white)
+                    .padding(15)
+                    .background(Color.dcgRed)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                }
+            }
+
+            if let external = game.externalStream, let url = externalURL {
+                Link(destination: url) {
+                    HStack {
+                        Label("Watch via \(external.provider)", systemImage: "play.rectangle.on.rectangle")
+                            .lineLimit(2)
+                        Spacer()
+                        Image(systemName: "arrow.up.right")
+                    }
+                    .font(.subheadline.bold())
+                    .foregroundStyle(Color.dcgRed)
+                    .padding(15)
+                    .background(Color(uiColor: .secondarySystemGroupedBackground))
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 12)
+                            .strokeBorder(Color.dcgRed.opacity(0.3), lineWidth: 1)
+                    }
+                }
+
+                Text("External broadcast · Hosted by \(external.provider)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                if let note = external.note, !note.isEmpty {
+                    Text(note)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            if dcgtvURL == nil && externalURL == nil {
+                Text("No broadcast link has been added for this game.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .padding(16)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color(uiColor: .secondarySystemGroupedBackground))
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var originalSource: some View {
+        if let url = boundURL {
+            Link(destination: url) {
+                HStack {
+                    Label("View Original Game Details on Bound", systemImage: "info.circle")
+                    Spacer()
+                    Image(systemName: "arrow.up.right")
+                }
+                .font(.subheadline.bold())
+                .foregroundStyle(Color.dcgRed)
+            }
+            .padding(.top, 4)
+        }
     }
 }
 
