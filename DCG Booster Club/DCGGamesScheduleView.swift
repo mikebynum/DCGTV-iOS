@@ -171,9 +171,28 @@ struct DCGGamesScheduleView: View {
         else { return false }
 
         let title = normalized(stream.title)
-        let sport = normalized(game.sport)
         let team = normalized(opponent)
-        return team.count >= 4 && title.contains(team) && title.contains(sport)
+
+        // Treat "Boys Basketball" and "Girls Basketball" as basketball,
+        // while rejecting broadcasts explicitly labeled for the other team.
+        let normalizedSport = normalized(game.sport)
+        let coreSport = normalizedSport
+            .replacingOccurrences(of: "boys ", with: "")
+            .replacingOccurrences(of: "girls ", with: "")
+            .trimmingCharacters(in: .whitespaces)
+        guard team.count >= 4,
+              title.contains(team),
+              !coreSport.isEmpty,
+              title.contains(coreSport)
+        else { return false }
+
+        if normalizedSport.hasPrefix("boys ") && title.contains("girls ") {
+            return false
+        }
+        if normalizedSport.hasPrefix("girls ") && title.contains("boys ") {
+            return false
+        }
+        return true
     }
 
     private func opponentName(from title: String) -> String? {
