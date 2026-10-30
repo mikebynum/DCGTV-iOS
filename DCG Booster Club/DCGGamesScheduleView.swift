@@ -14,6 +14,26 @@ struct DCGGame: Decodable, Identifiable {
     let status: String?
     let url: String?
 
+    var displayTitle: String {
+        // Remove the sport label and trailing "(Varsity)" from Bound summaries.
+        let parts = title.split(separator: ":", maxSplits: 1, omittingEmptySubsequences: false)
+        let event = String(parts.count == 2 ? parts[1] : parts[0])
+            .replacingOccurrences(
+                of: #"\s*\([^)]*\)\s*$"#,
+                with: "",
+                options: .regularExpression
+            )
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if event.isEmpty {
+            return "\(sport) Event"
+        }
+        return event.replacingOccurrences(
+            of: "Dallas Center-Grimes",
+            with: "DCG",
+            options: .caseInsensitive
+        )
+    }
+
     var startDate: Date? {
         let formatter = ISO8601DateFormatter()
 
@@ -121,126 +141,180 @@ struct DCGGamesScheduleView: View {
     @State private var selectedSport = "All Sports"
     @State private var selectedLevel = "All Levels"
 
+    private struct GameDay: Identifiable {
+        let date: Date
+        let games: [DCGGame]
+        var id: Date { date }
+    }
+
     private var sports: [String] {
-        ["All Sports"] +
-        Array(
-            Set(service.games.map(\.sport))
-        ).sorted()
+        ["All Sports"] + Set(service.games.map(\.sport)).sorted()
     }
 
     private var levels: [String] {
-        ["All Levels"] +
-        Array(
-            Set(service.games.map(\.level))
-        ).sorted()
+        ["All Levels"] + Set(service.games.map(\.level)).sorted()
     }
 
     private var filteredGames: [DCGGame] {
-
         service.games.filter { game in
+            (selectedSport == "All Sports" || game.sport == selectedSport) &&
+            (selectedLevel == "All Levels" || game.level == selectedLevel)
+        }
+    }
 
-            let matchesSport =
-                selectedSport == "All Sports" ||
-                game.sport == selectedSport
-
-            let matchesLevel =
-                selectedLevel == "All Levels" ||
-                game.level == selectedLevel
-
-            return matchesSport && matchesLevel
+    private var groupedGames: [GameDay] {
+        let valid = filteredGames.compactMap { game -> (Date, DCGGame)? in
+            guard let date = game.startDate else { return nil }
+            return (Calendar.current.startOfDay(for: date), game)
+        }
+        let groups = Dictionary(grouping: valid, by: { $0.0 })
+        return groups.keys.sorted().map { date in
+            GameDay(
+                date: date,
+                games: (groups[date] ?? []).map { $0.1 }.sorted {
+                    ($0.startDate ?? .distantFuture) < ($1.startDate ?? .distantFuture)
+                }
+            )
         }
     }
 
     var body: some View {
-
         VStack(alignment: .leading, spacing: 16) {
-
-            // MARK: - Header
-
             VStack(alignment: .leading, spacing: 6) {
-
                 Text("Mustang Athletics")
                     .font(.title2.bold())
-
                 Text("Upcoming DCG games and events")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
 
-            // MARK: - Filters
-
-            HStack(spacing: 12) {
-
-                Picker("Sport", selection: $selectedSport) {
-
-                    ForEach(sports, id: \.self) { sport in
-                        Text(sport).tag(sport)
+            // Menus remain usable when a calendar has dozens of sports and levels.
+            HStack(spacing: 10) {
+                Menu {
+                    Picker("Sport", selection: $selectedSport) {
+                        ForEach(sports, id: \.self) { sport in
+                            Text(sport).tag(sport)
+                        }
                     }
-                }
-                .tint(Color.dcgRed)
-
-                Picker("Level", selection: $selectedLevel) {
-
-                    ForEach(levels, id: \.self) { level in
-                        Text(level).tag(level)
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "sportscourt")
+                        Text(selectedSport)
+                            .lineLimit(1)
+                        Image(systemName: "chevron.down")
+                            .font(.caption2)
                     }
+                    .font(.subheadline.bold())
+                    .foregroundStyle(Color.dcgRed)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .background(Color(uiColor: .secondarySystemGroupedBackground))
+                    .clipShape(Capsule())
                 }
+
+                Menu {
+                    Picker("Level", selection: $selectedLevel) {
+                        ForEach(levels, id: \.self) { level in
+                            Text(level).tag(level)
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        Text(selectedLevel)
+                            .lineLimit(1)
+                        Image(systemName: "chevron.down")
+                            .font(.caption2)
+                    }
+                    .font(.subheadline.bold())
+                    .foregroundStyle(Color.dcgRed)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .background(Color(uiColor: .secondarySystemGroupedBackground))
+                    .clipShape(Capsule())
+                }
+            }
+
+            if selectedSport != "All Sports" || selectedLevel != "All Levels" {
+                Button("Clear filters") {
+                    selectedSport = "All Sports"
+                    selectedLevel = "All Levels"
+                }
+                .font(.caption.bold())
                 .tint(Color.dcgRed)
             }
 
-            // MARK: - Loading
-
             if service.isLoading && service.games.isEmpty {
-
                 ProgressView("Loading Mustang schedule...")
                     .frame(maxWidth: .infinity)
                     .padding(30)
-
             } else if service.games.isEmpty {
-
                 VStack(alignment: .leading, spacing: 12) {
-
                     Text("No games available")
                         .font(.headline)
-
                     if let error = service.errorMessage {
                         Text(error)
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
-
                     Button("Try Again") {
-                        Task {
-                            await service.refreshKeepingRequestAlive()
-                        }
+                        Task { await service.refreshKeepingRequestAlive() }
                     }
                     .tint(Color.dcgRed)
                 }
                 .padding(20)
-
             } else {
-
                 Text("\(filteredGames.count) upcoming events")
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
-                LazyVStack(spacing: 12) {
-
-                    ForEach(filteredGames) { game in
-                        DCGGameCard(game: game, stream: DCGGameStreamMatcher.matchedStream(for: game, in: service.games, broadcasts: streams.streams))
-                    }
-                }
-
                 if filteredGames.isEmpty {
-
-                    Text("No games match the selected filters.")
+                    Text("No games match your filters.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .padding()
+                } else {
+                    LazyVStack(alignment: .leading, spacing: 20) {
+                        ForEach(groupedGames) { group in
+                            VStack(alignment: .leading, spacing: 10) {
+                                HStack(spacing: 8) {
+                                    Text(
+                                        group.date,
+                                        format: .dateTime
+                                            .weekday(.wide)
+                                            .month(.abbreviated)
+                                            .day()
+                                    )
+                                    .font(.headline)
+
+                                    Spacer()
+
+                                    Text("\(group.games.count) \(group.games.count == 1 ? "event" : "events")")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                .padding(.top, 4)
+
+                                ForEach(group.games) { game in
+                                    DCGGameCard(
+                                        game: game,
+                                        stream: DCGGameStreamMatcher.matchedStream(
+                                            for: game,
+                                            in: service.games,
+                                            broadcasts: streams.streams
+                                        )
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
-            // MARK: - Bound Link
+            if let error = service.errorMessage, !service.games.isEmpty {
+                Text("Couldn't refresh: \(error)")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            }
 
             Link(
                 "View Full Schedule on Bound",
@@ -285,7 +359,7 @@ struct DCGGameCard: View {
                     .foregroundStyle(.secondary)
             }
 
-            Text(game.title)
+            Text(game.displayTitle)
                 .font(.headline)
                 .foregroundStyle(.primary)
                 .fixedSize(
