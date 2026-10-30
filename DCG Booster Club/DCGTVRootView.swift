@@ -17,6 +17,7 @@ struct DCGTVRootView: View {
     @State private var selectedTab: DCGTVTab = .home
     @StateObject private var streams = StreamService()
     @StateObject private var games = DCGGamesService()
+    @StateObject private var results = DCGResultsService()
 
     @Environment(\.scenePhase) private var scenePhase
 
@@ -27,6 +28,7 @@ struct DCGTVRootView: View {
             DCGTVHomeScreen(
                 streams: streams,
                 games: games,
+                results: results,
                 selectedTab: $selectedTab
             )
             .tabItem {
@@ -40,7 +42,7 @@ struct DCGTVRootView: View {
                 }
                 .tag(DCGTVTab.watch)
 
-            DCGTVScheduleScreen(streams: streams, games: games)
+            DCGTVScheduleScreen(streams: streams, games: games, results: results)
                 .tabItem {
                     Label("Schedule", systemImage: "calendar")
                 }
@@ -56,12 +58,14 @@ struct DCGTVRootView: View {
         .task {
             await streams.refreshKeepingRequestAlive()
             await games.refreshKeepingRequestAlive()
+            await results.refreshKeepingRequestAlive()
         }
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active {
                 Task {
                     await streams.refreshKeepingRequestAlive()
                     await games.refreshKeepingRequestAlive()
+                    await results.refreshKeepingRequestAlive()
                 }
             }
         }
@@ -74,6 +78,7 @@ private struct DCGTVHomeScreen: View {
 
     @ObservedObject var streams: StreamService
     @ObservedObject var games: DCGGamesService
+    @ObservedObject var results: DCGResultsService
     @Binding var selectedTab: DCGTVTab
 
     @AppStorage("dcgtv.favoriteSports") private var favoriteSportsRaw = ""
@@ -226,6 +231,9 @@ private struct DCGTVHomeScreen: View {
                     }
                 }
 
+                // Final scores verified in WordPress.
+                DCGRecentResultsView(service: results, limit: 3)
+
                 // Watch DCGTV
 
                 VStack(alignment: .leading, spacing: 12) {
@@ -303,6 +311,7 @@ private struct DCGTVHomeScreen: View {
         .refreshable {
             await streams.refreshKeepingRequestAlive(force: true)
             await games.refreshKeepingRequestAlive()
+            await results.refreshKeepingRequestAlive()
         }
         .sheet(isPresented: $showingSportPicker) {
             DCGFavoriteSportsPicker(
@@ -723,6 +732,8 @@ private struct DCGTVScheduleScreen: View {
 
     @ObservedObject var streams: StreamService
     @ObservedObject var games: DCGGamesService
+    @ObservedObject var results: DCGResultsService
+    @State private var showingRecentResults = false
 
     private var scheduled: [DCGStream] {
         streams.streams.filter {
@@ -735,6 +746,19 @@ private struct DCGTVScheduleScreen: View {
         ScrollView {
 
             VStack(alignment: .leading, spacing: 18) {
+
+                DisclosureGroup(isExpanded: $showingRecentResults) {
+                    DCGRecentResultsView(
+                        service: results,
+                        limit: 10,
+                        showHeading: false
+                    )
+                    .padding(.top, 10)
+                } label: {
+                    Label("Recent Results", systemImage: "trophy.fill")
+                        .font(.title3.bold())
+                        .foregroundStyle(Color.dcgRed)
+                }
 
                 DCGGamesScheduleView(service: games, streams: streams)
 
@@ -769,6 +793,7 @@ private struct DCGTVScheduleScreen: View {
         .refreshable {
             await streams.refreshKeepingRequestAlive(force: true)
             await games.refreshKeepingRequestAlive()
+            await results.refreshKeepingRequestAlive()
         }
     }
 }
