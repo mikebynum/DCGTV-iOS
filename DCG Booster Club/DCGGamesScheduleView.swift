@@ -172,39 +172,63 @@ struct DCGGamesScheduleView: View {
 
         let title = normalized(stream.title)
         let team = normalized(opponent)
-
-        // Treat "Boys Basketball" and "Girls Basketball" as basketball,
-        // while rejecting broadcasts explicitly labeled for the other team.
-        let normalizedSport = normalized(game.sport)
-        let coreSport = normalizedSport
+        let sport = normalized(game.sport)
+        let coreSport = sport
             .replacingOccurrences(of: "boys ", with: "")
             .replacingOccurrences(of: "girls ", with: "")
             .trimmingCharacters(in: .whitespaces)
+
         guard team.count >= 4,
               title.contains(team),
               !coreSport.isEmpty,
               title.contains(coreSport)
         else { return false }
 
-        if normalizedSport.hasPrefix("boys ") && title.contains("girls ") {
-            return false
-        }
-        if normalizedSport.hasPrefix("girls ") && title.contains("boys ") {
-            return false
-        }
+        // Never attach a girls game to a boys broadcast or vice versa.
+        if sport.hasPrefix("boys ") && title.contains("girls ") { return false }
+        if sport.hasPrefix("girls ") && title.contains("boys ") { return false }
+
+        // A titled varsity stream must not attach to a JV or freshman game.
+        let level = normalized(game.level)
+        if title.contains("varsity") && level != "varsity" { return false }
+        if (title.contains("junior varsity") || title.contains(" jv ")) &&
+            level == "varsity" { return false }
+
         return true
     }
 
     private func opponentName(from title: String) -> String? {
-        // Bound typically uses "Sport: DCG vs Opponent (Varsity)".
-        // Limit automatic matching to this unambiguous format.
-        guard let separator = title.range(of: " vs ", options: .caseInsensitive) else {
+        // Bound can list either team first. Resolve the non-DCG side rather
+        // than assuming the opponent always follows "vs".
+        let withoutSport = title.components(separatedBy: ":").dropFirst()
+            .joined(separator: ":")
+        let matchup = withoutSport.isEmpty ? title : withoutSport
+
+        let parts: [String]
+        if let range = matchup.range(of: " vs ", options: .caseInsensitive) {
+            parts = [String(matchup[..<range.lowerBound]),
+                     String(matchup[range.upperBound...])]
+        } else if let range = matchup.range(of: " at ", options: .caseInsensitive) {
+            parts = [String(matchup[..<range.lowerBound]),
+                     String(matchup[range.upperBound...])]
+        } else {
             return nil
         }
-        let trailing = String(title[separator.upperBound...])
-        let name = trailing.components(separatedBy: "(").first?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        return name?.isEmpty == false ? name : nil
+
+        let teams = parts.map {
+            $0.components(separatedBy: "(").first?
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        }
+
+        func isDCG(_ team: String) -> Bool {
+            let value = normalized(team)
+            return value == "dcg" || value.contains("dallas center grimes")
+        }
+
+        guard teams.count == 2 else { return nil }
+        if isDCG(teams[0]) && !isDCG(teams[1]) { return teams[1] }
+        if isDCG(teams[1]) && !isDCG(teams[0]) { return teams[0] }
+        return nil
     }
 
     private func normalized(_ value: String) -> String {
