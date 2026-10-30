@@ -551,3 +551,228 @@ enum DCGGameStreamMatcher {
     }
 
 }
+
+
+// MARK: - Verified Scores & Results
+// This service reads final scores entered by a WordPress administrator.
+// It does not assume the Bound iCalendar contains scoring information.
+
+struct DCGResult: Decodable, Identifiable {
+    let id: String
+    let title: String
+    let sport: String
+    let level: String
+    let start: String
+    let dcgScore: Int
+    let opponentScore: Int
+    let status: String
+    let url: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, title, sport, level, start, status, url
+        case dcgScore = "dcg_score"
+        case opponentScore = "opponent_score"
+    }
+
+    var eventDate: Date? {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = formatter.date(from: start) { return date }
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter.date(from: start)
+    }
+
+    var opponent: String {
+        let afterSport = title.split(separator: ":", maxSplits: 1)
+            .last.map(String.init) ?? title
+        let matchup = afterSport.replacingOccurrences(
+            of: #"\s*\([^)]*\)\s*$"#,
+            with: "",
+            options: .regularExpression
+        ).trimmingCharacters(in: .whitespacesAndNewlines)
+
+        let parts: [String]
+        if let range = matchup.range(of: " vs ", options: .caseInsensitive) {
+            parts = [String(matchup[..<range.lowerBound]),
+                     String(matchup[range.upperBound...])]
+        } else if let range = matchup.range(of: " at ", options: .caseInsensitive) {
+            parts = [String(matchup[..<range.lowerBound]),
+                     String(matchup[range.upperBound...])]
+        } else {
+            return "Opponent"
+        }
+
+        guard parts.count == 2 else { return "Opponent" }
+        let first = parts[0].trimmingCharacters(in: .whitespacesAndNewlines)
+        let second = parts[1].trimmingCharacters(in: .whitespacesAndNewlines)
+
+        func isDCG(_ value: String) -> Bool {
+            let name = value.folding(
+                options: [.caseInsensitive, .diacriticInsensitive],
+                locale: .current
+            )
+            return name == "dcg" || name.contains("dallas center-grimes")
+        }
+        if isDCG(first) { return second }
+        if isDCG(second) { return first }
+        return "Opponent"
+    }
+
+    var outcome: String {
+        if dcgScore > opponentScore { return "W" }
+        if dcgScore < opponentScore { return "L" }
+        return "T"
+    }
+}
+
+private struct DCGResultsResponse: Decodable {
+    let results: [DCGResult]
+}
+
+@MainActor
+final class DCGResultsService: ObservableObject {
+    @Published private(set) var results: [DCGResult] = []
+    @Published private(set) var isLoading = false
+    @Published private(set) var errorMessage: String?
+
+    private let endpoint = URL(
+        string: "https://dcgboosterclub.com/wp-json/dcg/v1/results"
+    )!
+
+    func refresh() async {
+        guard !isLoading else { return }
+        isLoading = true
+        errorMessage = nil
+        defer { isLoading = false }
+
+        do {
+            var request = URLRequest(url: endpoint)
+            request.cachePolicy = .reloadIgnoringLocalCacheData
+            request.timeoutInterval = 20
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let http = response as? HTTPURLResponse,
+                  (200...299).contains(http.statusCode) else {
+                throw URLError(.badServerResponse)
+            }
+
+            let decoded = try JSONDecoder().decode(DCGResultsResponse.self, from: data)
+            results = decoded.results
+                .filter { $0.status.lowercased() == "final" }
+                .sorted {
+                    ($0.eventDate ?? .distantPast) > ($1.eventDate ?? .distantPast)
+                }
+        } catch {
+            let nsError = error as NSError
+            if error is CancellationError ||
+                (nsError.domain == NSURLErrorDomain &&
+                 nsError.code == NSURLErrorCancelled) {
+                return
+            }
+            errorMessage = error.localizedDescription
+            print("DCG Results Error: \(error)")
+        }
+    }
+
+    func refreshKeepingRequestAlive() async {
+        let task = Task { await self.refresh() }
+        await task.value
+    }
+}
+
+// Reusable scores section for Home and the expandable Schedule section.
+struct DCGRecentResultsView: View {
+    @ObservedObject var service: DCGResultsService
+    var limit: Int = 3
+    var showHeading: Bool = true
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if showHeading {
+                Text("Recent Results")
+                    .font(.title2.bold())
+            }
+
+            if service.isLoading && service.results.isEmpty {
+                ProgressView("Loading results...")
+                    .frame(maxWidth: .infinity)
+                    .padding()
+            } else if service.results.isEmpty {
+                Text(
+                    service.errorMessage == nil
+                        ? "No verified game scores have been posted yet."
+                        : "Scores are temporarily unavailable."
+                )
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color(uiColor: .secondarySystemGroupedBackground))
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+            } else {
+                ForEach(Array(service.results.prefix(limit))) { result in
+                    DCGResultCard(result: result)
+                }
+            }
+        }
+    }
+}
+
+private struct DCGResultCard: View {
+    let result: DCGResult
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("\(result.sport) · \(result.level)")
+                    .font(.caption.bold())
+                    .foregroundStyle(Color.dcgRed)
+                    .lineLimit(1)
+                Spacer()
+                Text("FINAL")
+                    .font(.caption2.bold())
+                    .foregroundStyle(.secondary)
+            }
+
+            HStack(spacing: 8) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("DCG")
+                        .font(.subheadline.bold())
+                    Text(result.opponent)
+                        .font(.subheadline)
+                        .lineLimit(2)
+                }
+                Spacer(minLength: 10)
+                VStack(alignment: .trailing, spacing: 4) {
+                    Text("\(result.dcgScore)")
+                        .font(.headline.bold())
+                    Text("\(result.opponentScore)")
+                        .font(.headline)
+                }
+                Text(result.outcome)
+                    .font(.caption.bold())
+                    .foregroundStyle(result.outcome == "W" ? Color.green : .secondary)
+                    .frame(width: 22)
+            }
+
+            HStack {
+                if let date = result.eventDate {
+                    Text(date, format: .dateTime.month(.abbreviated).day().year())
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                if let urlString = result.url,
+                   let url = URL(string: urlString),
+                   url.scheme?.lowercased() == "https" {
+                    Link("Game Details", destination: url)
+                        .font(.caption.bold())
+                        .foregroundStyle(Color.dcgRed)
+                }
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(uiColor: .secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+    }
+}
