@@ -343,7 +343,7 @@ struct DCGGameCard: View {
     // Leave other venues unchanged to avoid losing useful location context.
     private func compactLocation(_ location: String) -> String {
         let prefix = "Dallas Center-Grimes High School "
-        guard location.localizedCaseInsensitiveHasPrefix(prefix) else {
+        guard location.range(of: prefix, options: [.anchored, .caseInsensitive]) != nil else {
             return location
         }
         let shortened = String(location.dropFirst(prefix.count))
