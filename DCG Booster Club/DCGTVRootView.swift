@@ -16,6 +16,7 @@ struct DCGTVRootView: View {
 
     @State private var selectedTab: DCGTVTab = .home
     @StateObject private var streams = StreamService()
+    @StateObject private var games = DCGGamesService()
 
     @Environment(\.scenePhase) private var scenePhase
 
@@ -25,6 +26,7 @@ struct DCGTVRootView: View {
 
             DCGTVHomeScreen(
                 streams: streams,
+                games: games,
                 selectedTab: $selectedTab
             )
             .tabItem {
@@ -38,7 +40,7 @@ struct DCGTVRootView: View {
                 }
                 .tag(DCGTVTab.watch)
 
-            DCGTVScheduleScreen(streams: streams)
+            DCGTVScheduleScreen(streams: streams, games: games)
                 .tabItem {
                     Label("Schedule", systemImage: "calendar")
                 }
@@ -53,11 +55,13 @@ struct DCGTVRootView: View {
         .tint(Color.dcgRed)
         .task {
             await streams.refreshKeepingRequestAlive()
+            await games.refreshKeepingRequestAlive()
         }
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active {
                 Task {
                     await streams.refreshKeepingRequestAlive()
+                    await games.refreshKeepingRequestAlive()
                 }
             }
         }
@@ -69,10 +73,18 @@ struct DCGTVRootView: View {
 private struct DCGTVHomeScreen: View {
 
     @ObservedObject var streams: StreamService
+    @ObservedObject var games: DCGGamesService
     @Binding var selectedTab: DCGTVTab
 
     private var featuredStream: DCGStream? {
-        streams.streams.first
+        streams.streams.first { stream in
+            let title = stream.title.trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased()
+            return title != "test" &&
+                !title.hasPrefix("test ") &&
+                !title.hasPrefix("test:") &&
+                !title.hasPrefix("[test]")
+        }
     }
 
     var body: some View {
@@ -133,6 +145,45 @@ private struct DCGTVHomeScreen: View {
                     .tint(Color.dcgRed)
                 }
 
+                // Next three games from Bound, including games not streamed on DCGTV.
+                VStack(alignment: .leading, spacing: 12) {
+
+                    HStack {
+                        Text("Upcoming Mustang Games")
+                            .font(.title2.bold())
+                        Spacer()
+                        Button("See All") {
+                            selectedTab = .schedule
+                        }
+                        .font(.subheadline.bold())
+                        .tint(Color.dcgRed)
+                    }
+
+                    if games.isLoading && games.games.isEmpty {
+                        ProgressView("Loading games...")
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                    } else if games.games.isEmpty {
+                        emptyMessage(
+                            "No upcoming games found",
+                            subtitle: games.errorMessage ?? "Check the full schedule for updates."
+                        )
+                    } else {
+                        ForEach(Array(games.games.filter {
+                            ($0.startDate ?? .distantPast) >= Date()
+                        }.prefix(3))) { game in
+                            DCGHomeGameCard(
+                                game: game,
+                                stream: DCGGameStreamMatcher.matchedStream(
+                                    for: game,
+                                    in: games.games,
+                                    broadcasts: streams.streams
+                                )
+                            )
+                        }
+                    }
+                }
+
                 // Watch DCGTV
 
                 VStack(alignment: .leading, spacing: 12) {
@@ -167,8 +218,12 @@ private struct DCGTVHomeScreen: View {
                         .font(.headline)
                         .frame(maxWidth: .infinity)
                         .padding(16)
-                        .foregroundStyle(.white)
-                        .background(Color.dcgRed.opacity(0.35))
+                        .foregroundStyle(Color.dcgRed)
+                        .background(Color(uiColor: .secondarySystemGroupedBackground))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 14)
+                                .strokeBorder(Color.dcgRed.opacity(0.45), lineWidth: 1)
+                        }
                         .clipShape(
                             RoundedRectangle(cornerRadius: 14)
                         )
@@ -205,7 +260,124 @@ private struct DCGTVHomeScreen: View {
         .background(Color(uiColor: .systemGroupedBackground))
         .refreshable {
             await streams.refreshKeepingRequestAlive(force: true)
+            await games.refreshKeepingRequestAlive()
         }
+    }
+}
+
+
+// MARK: - Compact Home Schedule Card
+// The full Schedule tab intentionally keeps its more detailed game cards.
+private struct DCGHomeGameCard: View {
+
+    let game: DCGGame
+    let stream: DCGStream?
+
+    private var cleanTitle: String {
+        let text = game.title
+        let afterSport = text.split(separator: ":", maxSplits: 1)
+            .last.map(String.init) ?? text
+        let withoutLevel = afterSport.replacingOccurrences(
+            of: #"\s*\([^)]*\)\s*$"#,
+            with: "",
+            options: .regularExpression
+        ).trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if withoutLevel.isEmpty {
+            return "\(game.sport) Event"
+        }
+
+        // Replace the full school name with the familiar DCG abbreviation.
+        return withoutLevel
+            .replacingOccurrences(
+                of: "Dallas Center-Grimes",
+                with: "DCG",
+                options: .caseInsensitive
+            )
+    }
+
+    private var eventURL: URL? {
+        guard let text = game.url,
+              let url = URL(string: text),
+              url.scheme?.lowercased() == "https"
+        else { return nil }
+        return url
+    }
+
+    private var broadcastURL: URL? {
+        guard let stream,
+              let url = URL(string: stream.url),
+              url.scheme?.lowercased() == "https"
+        else { return nil }
+        return url
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 13) {
+            if let date = game.startDate {
+                VStack(spacing: 2) {
+                    Text(date, format: .dateTime.weekday(.abbreviated))
+                        .font(.caption2.bold())
+                        .foregroundStyle(.secondary)
+                    Text(date, format: .dateTime.day())
+                        .font(.title2.bold())
+                        .foregroundStyle(.primary)
+                }
+                .frame(width: 54, height: 58)
+                .background(Color(uiColor: .tertiarySystemGroupedBackground))
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("\(game.sport) · \(game.level)")
+                    .font(.caption.bold())
+                    .foregroundStyle(Color.dcgRed)
+                    .lineLimit(1)
+
+                Text(cleanTitle)
+                    .font(.subheadline.bold())
+                    .foregroundStyle(.primary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if let date = game.startDate {
+                    Text(date, format: .dateTime.hour().minute())
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                if let location = game.location, !location.isEmpty {
+                    Text(location)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+
+                HStack(spacing: 14) {
+                    if let url = broadcastURL {
+                        Link(destination: url) {
+                            Label(
+                                stream?.isLive == true ? "Watch Live" : "Watch on DCGTV",
+                                systemImage: "play.fill"
+                            )
+                        }
+                    }
+
+                    if let url = eventURL {
+                        Link("Game Details", destination: url)
+                    }
+                }
+                .font(.caption.bold())
+                .foregroundStyle(Color.dcgRed)
+                .padding(.top, 2)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(13)
+        .background(Color(uiColor: .secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 15))
     }
 }
 
@@ -419,6 +591,7 @@ private struct DCGTVWatchScreen: View {
 private struct DCGTVScheduleScreen: View {
 
     @ObservedObject var streams: StreamService
+    @ObservedObject var games: DCGGamesService
 
     private var scheduled: [DCGStream] {
         streams.streams.filter {
@@ -435,7 +608,7 @@ private struct DCGTVScheduleScreen: View {
                 Text("Broadcast Schedule")
                     .font(.largeTitle.bold())
                 
-                DCGGamesScheduleView(streams: streams)
+                DCGGamesScheduleView(service: games, streams: streams)
 
                 Text("Upcoming DCGTV livestreams")
                     .foregroundStyle(.secondary)
