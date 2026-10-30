@@ -3,6 +3,23 @@ import Combine
 
 // MARK: - Game Model
 
+// Optional, manually curated third-party livestream for a Bound game.
+// The app links out to the source; it does not embed or rebroadcast it.
+struct DCGExternalStream: Decodable {
+    let provider: String
+    let url: String
+    let note: String?
+
+    var validURL: URL? {
+        guard let components = URLComponents(string: url),
+              components.scheme?.lowercased() == "https",
+              let host = components.host, !host.isEmpty,
+              components.user == nil, components.password == nil,
+              let result = components.url else { return nil }
+        return result
+    }
+}
+
 struct DCGGame: Decodable, Identifiable {
 
     let id: String
@@ -13,6 +30,12 @@ struct DCGGame: Decodable, Identifiable {
     let location: String?
     let status: String?
     let url: String?
+    let externalStream: DCGExternalStream?
+
+    enum CodingKeys: String, CodingKey {
+        case id, title, sport, level, start, location, status, url
+        case externalStream = "external_stream"
+    }
 
     var displayTitle: String {
         // Remove the sport label and trailing "(Varsity)" from Bound summaries.
@@ -409,7 +432,7 @@ struct DCGGameCard: View {
                     .foregroundStyle(.orange)
             }
 
-            // Only display a broadcast button for a unique, verified match.
+            // Only display a DCGTV broadcast for a unique, verified match.
             if let stream,
                let streamURL = URL(string: stream.url),
                streamURL.scheme?.lowercased() == "https" {
@@ -425,6 +448,35 @@ struct DCGGameCard: View {
                     .padding(12)
                     .background(stream.isLive ? Color.red : Color.dcgRed)
                     .clipShape(RoundedRectangle(cornerRadius: 12))
+                }
+            }
+
+            // An independently hosted away-game stream can coexist with DCGTV.
+            if let external = game.externalStream,
+               let url = external.validURL {
+                Link(destination: url) {
+                    Label(
+                        "Watch via \(external.provider)",
+                        systemImage: "play.rectangle.on.rectangle"
+                    )
+                    .font(.subheadline.bold())
+                    .foregroundStyle(Color.dcgRed)
+                    .frame(maxWidth: .infinity)
+                    .padding(12)
+                    .background(Color.dcgRed.opacity(0.08))
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 12)
+                            .strokeBorder(Color.dcgRed.opacity(0.35), lineWidth: 1)
+                    }
+                }
+                Text("External broadcast · Hosted by \(external.provider)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                if let note = external.note, !note.isEmpty {
+                    Text(note)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
 
@@ -458,6 +510,62 @@ struct DCGGameCard: View {
         .clipShape(
             RoundedRectangle(cornerRadius: 16)
         )
+    }
+}
+
+// Watch-tab card for manually curated away-game broadcasts.
+struct DCGAwayGameStreamCard: View {
+    let game: DCGGame
+
+    var body: some View {
+        if let external = game.externalStream, let url = external.validURL {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("\(game.sport) · \(game.level)")
+                    .font(.caption.bold())
+                    .foregroundStyle(Color.dcgRed)
+
+                Text(game.displayTitle)
+                    .font(.headline)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if let date = game.startDate {
+                    Label {
+                        Text(date, format: .dateTime.weekday(.abbreviated).month(.abbreviated).day().hour().minute())
+                    } icon: {
+                        Image(systemName: "calendar")
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
+
+                Link(destination: url) {
+                    HStack {
+                        Label("Watch via \(external.provider)", systemImage: "play.rectangle.fill")
+                            .lineLimit(2)
+                        Spacer()
+                        Image(systemName: "arrow.up.right")
+                    }
+                    .font(.subheadline.bold())
+                    .foregroundStyle(.white)
+                    .padding(12)
+                    .background(Color.dcgRed)
+                    .clipShape(RoundedRectangle(cornerRadius: 11))
+                }
+
+                if let note = external.note, !note.isEmpty {
+                    Text(note)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Text("External broadcast · Availability controlled by the broadcaster")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(15)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(uiColor: .secondarySystemGroupedBackground))
+            .clipShape(RoundedRectangle(cornerRadius: 15))
+        }
     }
 }
 

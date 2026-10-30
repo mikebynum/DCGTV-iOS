@@ -36,7 +36,7 @@ struct DCGTVRootView: View {
             }
             .tag(DCGTVTab.home)
 
-            DCGTVWatchScreen(streams: streams)
+            DCGTVWatchScreen(streams: streams, games: games)
                 .tabItem {
                     Label("Watch", systemImage: "play.tv.fill")
                 }
@@ -103,6 +103,15 @@ private struct DCGTVHomeScreen: View {
         let preferred = upcoming.filter { favorites.contains($0.sport) }
         let remaining = upcoming.filter { !favorites.contains($0.sport) }
         return Array((preferred + remaining).prefix(3))
+    }
+
+    private var nextAwayGame: DCGGame? {
+        let upcoming = games.games.filter {
+            ($0.startDate ?? .distantPast) >= Date().addingTimeInterval(-6 * 60 * 60) &&
+            $0.externalStream?.validURL != nil
+        }
+        let favorites = favoriteSports
+        return upcoming.first(where: { favorites.contains($0.sport) }) ?? upcoming.first
     }
 
     private var featuredStream: DCGStream? {
@@ -228,6 +237,26 @@ private struct DCGTVHomeScreen: View {
                                 )
                             )
                         }
+                    }
+
+                    // The matching game already includes its stream link.
+                    // Keep Home compact and send fans to Watch for the full list.
+                    if nextAwayGame != nil {
+                        Button {
+                            selectedTab = .watch
+                        } label: {
+                            HStack(spacing: 8) {
+                                Image(systemName: "play.rectangle.on.rectangle")
+                                Text("See All Away Streams")
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.caption)
+                            }
+                            .font(.subheadline.bold())
+                            .foregroundStyle(Color.dcgRed)
+                            .padding(.vertical, 6)
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
 
@@ -510,6 +539,24 @@ private struct DCGHomeGameCard: View {
                 .font(.caption.bold())
                 .foregroundStyle(Color.dcgRed)
                 .padding(.top, 2)
+
+                if let external = game.externalStream,
+                   let url = external.validURL {
+                    Link(destination: url) {
+                        Label(
+                            "Away Stream: \(external.provider)",
+                            systemImage: "play.rectangle.on.rectangle"
+                        )
+                        .font(.caption.bold())
+                    }
+                    .foregroundStyle(Color.dcgRed)
+                    .padding(.top, 3)
+                    if let note = external.note, !note.isEmpty {
+                        Text(note)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
             }
 
             Spacer(minLength: 0)
@@ -527,6 +574,14 @@ private struct DCGHomeGameCard: View {
 private struct DCGTVWatchScreen: View {
 
    @ObservedObject var streams: StreamService
+   @ObservedObject var games: DCGGamesService
+
+   private var upcomingAwayGames: [DCGGame] {
+       Array(games.games.filter {
+           ($0.startDate ?? .distantPast) >= Date().addingTimeInterval(-6 * 60 * 60) &&
+           $0.externalStream?.validURL != nil
+       }.prefix(10))
+   }
 
    private var liveStreams: [DCGStream] {
        streams.streams.filter { $0.isLive }
@@ -613,6 +668,24 @@ private struct DCGTVWatchScreen: View {
 
                        ForEach(liveStreams) { stream in
                            StreamCardView(stream: stream)
+                       }
+                   }
+               }
+
+               // MARK: Away and Other Streams
+
+               if !upcomingAwayGames.isEmpty {
+                   VStack(alignment: .leading, spacing: 12) {
+                       Label("Away & Other Streams", systemImage: "play.rectangle.on.rectangle")
+                           .font(.title2.bold())
+                           .foregroundStyle(Color.dcgRed)
+
+                       Text("Links to broadcasts hosted by other schools or providers. Access and availability are determined by the broadcaster.")
+                           .font(.subheadline)
+                           .foregroundStyle(.secondary)
+
+                       ForEach(upcomingAwayGames) { game in
+                           DCGAwayGameStreamCard(game: game)
                        }
                    }
                }
@@ -722,6 +795,7 @@ private struct DCGTVWatchScreen: View {
        )
        .refreshable {
            await streams.refreshKeepingRequestAlive(force: true)
+           await games.refreshKeepingRequestAlive()
        }
    }
 }
