@@ -339,6 +339,18 @@ struct DCGGameCard: View {
     let game: DCGGame
     let stream: DCGStream?
 
+    // Shorten the repeated school prefix for DCG's own facilities only.
+    // Leave other venues unchanged to avoid losing useful location context.
+    private func compactLocation(_ location: String) -> String {
+        let prefix = "Dallas Center-Grimes High School "
+        guard location.localizedCaseInsensitiveHasPrefix(prefix) else {
+            return location
+        }
+        let shortened = String(location.dropFirst(prefix.count))
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return shortened.isEmpty ? location : shortened
+    }
+
     var body: some View {
 
         VStack(alignment: .leading, spacing: 12) {
@@ -370,17 +382,9 @@ struct DCGGameCard: View {
             if let date = game.startDate {
 
                 Label {
-                    Text(
-                        date,
-                        format: .dateTime
-                            .weekday(.wide)
-                            .month(.abbreviated)
-                            .day()
-                            .hour()
-                            .minute()
-                    )
+                    Text(date, format: .dateTime.hour().minute())
                 } icon: {
-                    Image(systemName: "calendar")
+                    Image(systemName: "clock")
                 }
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
@@ -390,7 +394,7 @@ struct DCGGameCard: View {
                !location.isEmpty {
 
                 Label(
-                    location,
+                    compactLocation(location),
                     systemImage: "mappin.and.ellipse"
                 )
                 .font(.caption)
