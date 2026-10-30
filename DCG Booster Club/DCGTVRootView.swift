@@ -278,7 +278,7 @@ private struct DCGHomeGameCard: View {
         let afterSport = text.split(separator: ":", maxSplits: 1)
             .last.map(String.init) ?? text
         let withoutLevel = afterSport.replacingOccurrences(
-            of: #"\\s*\\([^)]*\\)\\s*$"#,
+            of: #"\s*\([^)]*\)\s*$"#,
             with: "",
             options: .regularExpression
         ).trimmingCharacters(in: .whitespacesAndNewlines)
