@@ -125,10 +125,8 @@ private struct DCGTVHomeScreen: View {
         }
         guard !favorites.isEmpty else { return Array(upcoming.prefix(3)) }
 
-        // Show favorites first, but still fill empty slots with other games.
-        let preferred = upcoming.filter { favorites.contains($0.sport) }
-        let remaining = upcoming.filter { !favorites.contains($0.sport) }
-        return Array((preferred + remaining).prefix(3))
+        // Favorite sports only, even if that's fewer than 3 games (or none).
+        return Array(upcoming.filter { favorites.contains($0.sport) }.prefix(3))
     }
 
     private var nextAwayGame: DCGGame? {
@@ -251,6 +249,11 @@ private struct DCGTVHomeScreen: View {
                         emptyMessage(
                             "No upcoming games found",
                             subtitle: games.errorMessage ?? "Check the full schedule for updates."
+                        )
+                    } else if prioritizedGames.isEmpty {
+                        emptyMessage(
+                            "No upcoming games in your favorite sports",
+                            subtitle: "Check the full schedule, or edit your favorite sports above."
                         )
                     } else {
                         ForEach(prioritizedGames) { game in
