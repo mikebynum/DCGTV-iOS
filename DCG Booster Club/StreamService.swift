@@ -40,6 +40,14 @@ final class StreamService: ObservableObject {
     private var lastAttempt: Date?
     private let minimumRefreshInterval: TimeInterval = 60
     private let endpoint = URL(string: "https://dcgboosterclub.com/wp-json/dcg/v1/streams")!
+    private let cacheFilename = "streams.json"
+
+    init() {
+        if let cached = DCGCache.load(StreamResponse.self, from: cacheFilename) {
+            apply(cached.value)
+            lastUpdated = cached.savedAt
+        }
+    }
 
     func loadStreams(force: Bool = false) async {
         guard !isLoading else { return }
@@ -53,14 +61,9 @@ final class StreamService: ObservableObject {
 
         do {
             let decoded = try await DCGNetworking.fetchJSON(StreamResponse.self, from: endpoint)
-            streams = decoded.streams
-                .filter { $0.isLive || $0.status.lowercased() == "upcoming" }
-                .sorted { a, b in
-                    if a.isLive != b.isLive { return a.isLive }
-                    return (a.startDate ?? .distantFuture) < (b.startDate ?? .distantFuture)
-                }
-            replays = decoded.replays ?? []
+            apply(decoded)
             lastUpdated = Date()
+            DCGCache.save(decoded, as: cacheFilename)
             print("DCGTV: Loaded \(streams.count) broadcasts and \(replays.count) replays")
         } catch {
             if DCGNetworking.isCancellation(error) {
@@ -71,6 +74,16 @@ final class StreamService: ObservableObject {
             errorMessage = error.localizedDescription
             print("DCGTV API Error: \(error)")
         }
+    }
+
+    private func apply(_ decoded: StreamResponse) {
+        streams = decoded.streams
+            .filter { $0.isLive || $0.status.lowercased() == "upcoming" }
+            .sorted { a, b in
+                if a.isLive != b.isLive { return a.isLive }
+                return (a.startDate ?? .distantFuture) < (b.startDate ?? .distantFuture)
+            }
+        replays = decoded.replays ?? []
     }
 
     func refreshKeepingRequestAlive(force: Bool = false) async {
