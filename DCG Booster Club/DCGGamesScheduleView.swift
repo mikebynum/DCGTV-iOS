@@ -547,11 +547,71 @@ struct DCGGameDetailView: View {
         return location
     }
 
+    // Share a readable snapshot plus public links, so recipients can use it
+    // even when they do not have DCGTV installed.
+    private var shareText: String {
+        var lines = [
+            game.displayTitle,
+            "\(game.sport) · \(game.level)"
+        ]
+
+        if let status = game.status?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !status.isEmpty, status.uppercased() != "CONFIRMED" {
+            lines.append("Status: \(status.capitalized)")
+        }
+
+        if let date = game.startDate {
+            let formatter = DateFormatter()
+            formatter.locale = .current
+            formatter.timeZone = .current
+            // Include the year and time zone for recipients in other locations.
+            formatter.setLocalizedDateFormatFromTemplate("EEEEMMMMdyyyyjmmz")
+            lines.append(formatter.string(from: date))
+        } else {
+            lines.append("Date and time: See Bound for updates.")
+        }
+
+        if let venue {
+            lines.append("Location: \(venue)")
+        }
+
+        if let url = dcgtvURL {
+            lines.append("\nWatch on DCGTV:\n\(url.absoluteString)")
+        }
+
+        if let external = game.externalStream, let url = externalURL {
+            lines.append("\nWatch via \(external.provider):\n\(url.absoluteString)")
+            if let note = external.note?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !note.isEmpty {
+                lines.append(note)
+            }
+        }
+
+        if let url = boundURL {
+            lines.append("\nGame details and schedule updates on Bound:\n\(url.absoluteString)")
+        }
+
+        lines.append("\nShared from DCGTV")
+        return lines.joined(separator: "\n")
+    }
+
+    private var shareButton: some View {
+        ShareLink(item: shareText) {
+            Label("Share Game", systemImage: "square.and.arrow.up")
+                .font(.subheadline.bold())
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 6)
+        }
+        .buttonStyle(.bordered)
+        .tint(Color.dcgRed)
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
                 header
                 details
+                shareButton
 
                 if let result, result.status.lowercased() == "final" {
                     finalScore(result)
