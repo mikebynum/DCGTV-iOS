@@ -16,10 +16,22 @@ struct StreamCardView: View {
        }
    }
 
+   // SFSafariViewController requires an http/https URL; validate before
+   // presenting so a malformed CMS link can't crash the app.
+   private var validStreamURL: URL? {
+       guard let url = URL(string: stream.url),
+             let scheme = url.scheme?.lowercased(),
+             ["https", "http"].contains(scheme)
+       else { return nil }
+       return url
+   }
+
    var body: some View {
 
        Button {
-           showVideo = true
+           if validStreamURL != nil {
+               showVideo = true
+           }
        } label: {
 
            HStack(alignment: .center, spacing: 12) {
@@ -116,7 +128,7 @@ struct StreamCardView: View {
 
        .buttonStyle(.plain)
        .sheet(isPresented: $showVideo) {
-           if let url = URL(string: stream.url) {
+           if let url = validStreamURL {
                VideoBrowserView(url: url)
                    .ignoresSafeArea()
            }

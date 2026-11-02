@@ -19,21 +19,7 @@ struct DCGPlaylistVideo: Decodable, Identifiable {
 
     var publicationDate: Date? {
         guard let publishedAt else { return nil }
-
-        let formatter = ISO8601DateFormatter()
-
-        formatter.formatOptions = [
-            .withInternetDateTime,
-            .withFractionalSeconds
-        ]
-
-        if let date = formatter.date(from: publishedAt) {
-            return date
-        }
-
-        formatter.formatOptions = [.withInternetDateTime]
-
-        return formatter.date(from: publishedAt)
+        return DCGDateParsing.flexibleISO8601(publishedAt)
     }
 }
 
@@ -110,23 +96,9 @@ private final class DCGPlaylistService: ObservableObject {
         }
 
         do {
-            var request = URLRequest(url: endpoint)
-            request.cachePolicy = .reloadIgnoringLocalCacheData
-            request.timeoutInterval = 20
-
-            let (data, response) = try await URLSession.shared.data(
-                for: request
-            )
-
-            guard let http = response as? HTTPURLResponse,
-                  (200...299).contains(http.statusCode)
-            else {
-                throw URLError(.badServerResponse)
-            }
-
-            let result = try JSONDecoder().decode(
+            let result = try await DCGNetworking.fetchJSON(
                 DCGPlaylistResponse.self,
-                from: data
+                from: endpoint
             )
 
             playlists = result.playlists
@@ -143,11 +115,7 @@ private final class DCGPlaylistService: ObservableObject {
 
         } catch {
 
-            let nsError = error as NSError
-
-            if error is CancellationError ||
-               (nsError.domain == NSURLErrorDomain &&
-                nsError.code == NSURLErrorCancelled) {
+            if DCGNetworking.isCancellation(error) {
                 return
             }
 

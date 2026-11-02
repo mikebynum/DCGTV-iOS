@@ -58,19 +58,21 @@ struct DCGGame: Decodable, Identifiable {
     }
 
     var startDate: Date? {
-        let formatter = ISO8601DateFormatter()
+        DCGDateParsing.flexibleISO8601(start)
+    }
 
-        formatter.formatOptions = [
-            .withInternetDateTime,
-            .withFractionalSeconds
-        ]
-
-        if let date = formatter.date(from: start) {
-            return date
+    // Shorten the repeated school prefix for DCG's own facilities only.
+    // Leave other venues unchanged to avoid losing useful location context.
+    var compactLocation: String? {
+        guard let location = location?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !location.isEmpty else { return nil }
+        let prefix = "Dallas Center-Grimes High School "
+        guard location.range(of: prefix, options: [.anchored, .caseInsensitive]) != nil else {
+            return location
         }
-
-        formatter.formatOptions = [.withInternetDateTime]
-        return formatter.date(from: start)
+        let shortened = String(location.dropFirst(prefix.count))
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return shortened.isEmpty ? location : shortened
     }
 }
 
@@ -105,23 +107,9 @@ final class DCGGamesService: ObservableObject {
         }
 
         do {
-            var request = URLRequest(url: endpoint)
-            request.cachePolicy = .reloadIgnoringLocalCacheData
-            request.timeoutInterval = 20
-
-            let (data, response) = try await URLSession.shared.data(
-                for: request
-            )
-
-            guard let http = response as? HTTPURLResponse,
-                  (200...299).contains(http.statusCode)
-            else {
-                throw URLError(.badServerResponse)
-            }
-
-            let decoded = try JSONDecoder().decode(
+            let decoded = try await DCGNetworking.fetchJSON(
                 DCGGamesResponse.self,
-                from: data
+                from: endpoint
             )
 
             games = decoded.games.sorted {
@@ -132,11 +120,7 @@ final class DCGGamesService: ObservableObject {
             print("DCG Games: Loaded \(games.count) events")
 
         } catch {
-            let nsError = error as NSError
-
-            if error is CancellationError ||
-                (nsError.domain == NSURLErrorDomain &&
-                 nsError.code == NSURLErrorCancelled) {
+            if DCGNetworking.isCancellation(error) {
                 return
             }
 
@@ -365,18 +349,6 @@ struct DCGGameCard: View {
     let stream: DCGStream?
     let onShowDetails: () -> Void
 
-    // Shorten the repeated school prefix for DCG's own facilities only.
-    // Leave other venues unchanged to avoid losing useful location context.
-    private func compactLocation(_ location: String) -> String {
-        let prefix = "Dallas Center-Grimes High School "
-        guard location.range(of: prefix, options: [.anchored, .caseInsensitive]) != nil else {
-            return location
-        }
-        let shortened = String(location.dropFirst(prefix.count))
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        return shortened.isEmpty ? location : shortened
-    }
-
     var body: some View {
 
         VStack(alignment: .leading, spacing: 12) {
@@ -417,11 +389,10 @@ struct DCGGameCard: View {
                 .foregroundStyle(.secondary)
             }
 
-            if let location = game.location,
-               !location.isEmpty {
+            if let compactLocation = game.compactLocation {
 
                 Label(
-                    compactLocation(location),
+                    compactLocation,
                     systemImage: "mappin.and.ellipse"
                 )
                 .font(.caption)
@@ -536,16 +507,7 @@ struct DCGGameDetailView: View {
         game.externalStream?.validURL
     }
 
-    private var venue: String? {
-        guard let location = game.location?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !location.isEmpty else { return nil }
-        let prefix = "Dallas Center-Grimes High School "
-        if location.range(of: prefix, options: [.anchored, .caseInsensitive]) != nil {
-            return String(location.dropFirst(prefix.count))
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-        }
-        return location
-    }
+    private var venue: String? { game.compactLocation }
 
     // Share a readable snapshot plus public links, so recipients can use it
     // even when they do not have DCGTV installed.
@@ -976,11 +938,7 @@ struct DCGResult: Decodable, Identifiable {
     }
 
     var eventDate: Date? {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = formatter.date(from: start) { return date }
-        formatter.formatOptions = [.withInternetDateTime]
-        return formatter.date(from: start)
+        DCGDateParsing.flexibleISO8601(start)
     }
 
     var opponent: String {
@@ -1047,26 +1005,14 @@ final class DCGResultsService: ObservableObject {
         defer { isLoading = false }
 
         do {
-            var request = URLRequest(url: endpoint)
-            request.cachePolicy = .reloadIgnoringLocalCacheData
-            request.timeoutInterval = 20
-            let (data, response) = try await URLSession.shared.data(for: request)
-            guard let http = response as? HTTPURLResponse,
-                  (200...299).contains(http.statusCode) else {
-                throw URLError(.badServerResponse)
-            }
-
-            let decoded = try JSONDecoder().decode(DCGResultsResponse.self, from: data)
+            let decoded = try await DCGNetworking.fetchJSON(DCGResultsResponse.self, from: endpoint)
             results = decoded.results
                 .filter { $0.status.lowercased() == "final" }
                 .sorted {
                     ($0.eventDate ?? .distantPast) > ($1.eventDate ?? .distantPast)
                 }
         } catch {
-            let nsError = error as NSError
-            if error is CancellationError ||
-                (nsError.domain == NSURLErrorDomain &&
-                 nsError.code == NSURLErrorCancelled) {
+            if DCGNetworking.isCancellation(error) {
                 return
             }
             errorMessage = error.localizedDescription
