@@ -5,7 +5,7 @@ import Combine
 
 // Optional, manually curated third-party livestream for a Bound game.
 // The app links out to the source; it does not embed or rebroadcast it.
-struct DCGExternalStream: Decodable {
+struct DCGExternalStream: Codable {
     let provider: String
     let url: String
     let note: String?
@@ -20,7 +20,7 @@ struct DCGExternalStream: Decodable {
     }
 }
 
-struct DCGGame: Decodable, Identifiable {
+struct DCGGame: Codable, Identifiable {
 
     let id: String
     let title: String
@@ -78,7 +78,7 @@ struct DCGGame: Decodable, Identifiable {
 
 // MARK: - API Response
 
-private struct DCGGamesResponse: Decodable {
+private struct DCGGamesResponse: Codable {
     let games: [DCGGame]
 }
 
@@ -94,6 +94,13 @@ final class DCGGamesService: ObservableObject {
     private let endpoint = URL(
         string: "https://dcgboosterclub.com/wp-json/dcg/v1/games"
     )!
+    private let cacheFilename = "games.json"
+
+    init() {
+        if let cached = DCGCache.load(DCGGamesResponse.self, from: cacheFilename) {
+            apply(cached.value)
+        }
+    }
 
     func refresh() async {
 
@@ -112,10 +119,8 @@ final class DCGGamesService: ObservableObject {
                 from: endpoint
             )
 
-            games = decoded.games.sorted {
-                ($0.startDate ?? .distantFuture) <
-                ($1.startDate ?? .distantFuture)
-            }
+            apply(decoded)
+            DCGCache.save(decoded, as: cacheFilename)
 
             print("DCG Games: Loaded \(games.count) events")
 
@@ -126,6 +131,13 @@ final class DCGGamesService: ObservableObject {
 
             errorMessage = error.localizedDescription
             print("DCG Games Error: \(error)")
+        }
+    }
+
+    private func apply(_ decoded: DCGGamesResponse) {
+        games = decoded.games.sorted {
+            ($0.startDate ?? .distantFuture) <
+            ($1.startDate ?? .distantFuture)
         }
     }
 
@@ -148,6 +160,7 @@ struct DCGGamesScheduleView: View {
 
     @State private var selectedSport = "All Sports"
     @State private var selectedLevel = "All Levels"
+    @State private var searchText = ""
 
     private struct GameDay: Identifiable {
         let date: Date
@@ -164,9 +177,11 @@ struct DCGGamesScheduleView: View {
     }
 
     private var filteredGames: [DCGGame] {
-        service.games.filter { game in
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        return service.games.filter { game in
             (selectedSport == "All Sports" || game.sport == selectedSport) &&
-            (selectedLevel == "All Levels" || game.level == selectedLevel)
+            (selectedLevel == "All Levels" || game.level == selectedLevel) &&
+            (query.isEmpty || game.displayTitle.localizedCaseInsensitiveContains(query))
         }
     }
 
@@ -195,6 +210,28 @@ struct DCGGamesScheduleView: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
+
+            HStack(spacing: 8) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundStyle(.secondary)
+
+                TextField("Search opponent or team", text: $searchText)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+
+                if !searchText.isEmpty {
+                    Button {
+                        searchText = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(Color(uiColor: .secondarySystemGroupedBackground))
+            .clipShape(Capsule())
 
             // Menus remain usable when a calendar has dozens of sports and levels.
             HStack(spacing: 10) {
@@ -242,10 +279,11 @@ struct DCGGamesScheduleView: View {
                 }
             }
 
-            if selectedSport != "All Sports" || selectedLevel != "All Levels" {
+            if selectedSport != "All Sports" || selectedLevel != "All Levels" || !searchText.isEmpty {
                 Button("Clear filters") {
                     selectedSport = "All Sports"
                     selectedLevel = "All Levels"
+                    searchText = ""
                 }
                 .font(.caption.bold())
                 .tint(Color.dcgRed)
@@ -920,7 +958,7 @@ enum DCGGameStreamMatcher {
 // This service reads final scores entered by a WordPress administrator.
 // It does not assume the Bound iCalendar contains scoring information.
 
-struct DCGResult: Decodable, Identifiable {
+struct DCGResult: Codable, Identifiable {
     let id: String
     let title: String
     let sport: String
@@ -984,7 +1022,7 @@ struct DCGResult: Decodable, Identifiable {
     }
 }
 
-private struct DCGResultsResponse: Decodable {
+private struct DCGResultsResponse: Codable {
     let results: [DCGResult]
 }
 
@@ -997,6 +1035,13 @@ final class DCGResultsService: ObservableObject {
     private let endpoint = URL(
         string: "https://dcgboosterclub.com/wp-json/dcg/v1/results"
     )!
+    private let cacheFilename = "results.json"
+
+    init() {
+        if let cached = DCGCache.load(DCGResultsResponse.self, from: cacheFilename) {
+            apply(cached.value)
+        }
+    }
 
     func refresh() async {
         guard !isLoading else { return }
@@ -1006,11 +1051,8 @@ final class DCGResultsService: ObservableObject {
 
         do {
             let decoded = try await DCGNetworking.fetchJSON(DCGResultsResponse.self, from: endpoint)
-            results = decoded.results
-                .filter { $0.status.lowercased() == "final" }
-                .sorted {
-                    ($0.eventDate ?? .distantPast) > ($1.eventDate ?? .distantPast)
-                }
+            apply(decoded)
+            DCGCache.save(decoded, as: cacheFilename)
         } catch {
             if DCGNetworking.isCancellation(error) {
                 return
@@ -1018,6 +1060,14 @@ final class DCGResultsService: ObservableObject {
             errorMessage = error.localizedDescription
             print("DCG Results Error: \(error)")
         }
+    }
+
+    private func apply(_ decoded: DCGResultsResponse) {
+        results = decoded.results
+            .filter { $0.status.lowercased() == "final" }
+            .sorted {
+                ($0.eventDate ?? .distantPast) > ($1.eventDate ?? .distantPast)
+            }
     }
 
     func refreshKeepingRequestAlive() async {
