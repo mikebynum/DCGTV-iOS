@@ -76,19 +76,24 @@ struct DCGTVRootView: View {
             }
         }
         .task {
-            await streams.refreshKeepingRequestAlive()
-            await games.refreshKeepingRequestAlive()
-            await results.refreshKeepingRequestAlive()
+            await refreshAll()
         }
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active {
                 Task {
-                    await streams.refreshKeepingRequestAlive()
-                    await games.refreshKeepingRequestAlive()
-                    await results.refreshKeepingRequestAlive()
+                    await refreshAll()
                 }
             }
         }
+    }
+
+    // Streams, games, and results are independent endpoints, so fetch them
+    // concurrently instead of serializing three round trips.
+    private func refreshAll() async {
+        async let streamsRefresh: Void = streams.refreshKeepingRequestAlive()
+        async let gamesRefresh: Void = games.refreshKeepingRequestAlive()
+        async let resultsRefresh: Void = results.refreshKeepingRequestAlive()
+        _ = await (streamsRefresh, gamesRefresh, resultsRefresh)
     }
 }
 
@@ -360,9 +365,10 @@ private struct DCGTVHomeScreen: View {
         }
         .background(Color(uiColor: .systemGroupedBackground))
         .refreshable {
-            await streams.refreshKeepingRequestAlive(force: true)
-            await games.refreshKeepingRequestAlive()
-            await results.refreshKeepingRequestAlive()
+            async let streamsRefresh: Void = streams.refreshKeepingRequestAlive(force: true)
+            async let gamesRefresh: Void = games.refreshKeepingRequestAlive()
+            async let resultsRefresh: Void = results.refreshKeepingRequestAlive()
+            _ = await (streamsRefresh, gamesRefresh, resultsRefresh)
         }
         .sheet(isPresented: $showingSportPicker) {
             DCGFavoriteSportsPicker(
@@ -465,29 +471,6 @@ private struct DCGHomeGameCard: View {
     let stream: DCGStream?
     let onShowDetails: () -> Void
 
-    private var cleanTitle: String {
-        let text = game.title
-        let afterSport = text.split(separator: ":", maxSplits: 1)
-            .last.map(String.init) ?? text
-        let withoutLevel = afterSport.replacingOccurrences(
-            of: #"\s*\([^)]*\)\s*$"#,
-            with: "",
-            options: .regularExpression
-        ).trimmingCharacters(in: .whitespacesAndNewlines)
-
-        if withoutLevel.isEmpty {
-            return "\(game.sport) Event"
-        }
-
-        // Replace the full school name with the familiar DCG abbreviation.
-        return withoutLevel
-            .replacingOccurrences(
-                of: "Dallas Center-Grimes",
-                with: "DCG",
-                options: .caseInsensitive
-            )
-    }
-
     private var broadcastURL: URL? {
         guard let stream,
               let url = URL(string: stream.url),
@@ -519,7 +502,7 @@ private struct DCGHomeGameCard: View {
                     .lineLimit(1)
 
                 Button(action: onShowDetails) {
-                    Text(cleanTitle)
+                    Text(game.displayTitle)
                         .font(.subheadline.bold())
                         .foregroundStyle(.primary)
                         .lineLimit(2)
@@ -811,8 +794,9 @@ private struct DCGTVWatchScreen: View {
            Color(uiColor: .systemGroupedBackground)
        )
        .refreshable {
-           await streams.refreshKeepingRequestAlive(force: true)
-           await games.refreshKeepingRequestAlive()
+           async let streamsRefresh: Void = streams.refreshKeepingRequestAlive(force: true)
+           async let gamesRefresh: Void = games.refreshKeepingRequestAlive()
+           _ = await (streamsRefresh, gamesRefresh)
        }
    }
 }
@@ -887,9 +871,10 @@ private struct DCGTVScheduleScreen: View {
         }
         .background(Color(uiColor: .systemGroupedBackground))
         .refreshable {
-            await streams.refreshKeepingRequestAlive(force: true)
-            await games.refreshKeepingRequestAlive()
-            await results.refreshKeepingRequestAlive()
+            async let streamsRefresh: Void = streams.refreshKeepingRequestAlive(force: true)
+            async let gamesRefresh: Void = games.refreshKeepingRequestAlive()
+            async let resultsRefresh: Void = results.refreshKeepingRequestAlive()
+            _ = await (streamsRefresh, gamesRefresh, resultsRefresh)
         }
     }
 }

@@ -16,11 +16,7 @@ struct DCGStream: Codable, Identifiable {
 
     var startDate: Date? {
         guard let scheduledStart else { return nil }
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = formatter.date(from: scheduledStart) { return date }
-        formatter.formatOptions = [.withInternetDateTime]
-        return formatter.date(from: scheduledStart)
+        return DCGDateParsing.flexibleISO8601(scheduledStart)
     }
 
     var isLive: Bool { status.lowercased() == "live" }
@@ -56,24 +52,7 @@ final class StreamService: ObservableObject {
         defer { isLoading = false }
 
         do {
-            var request = URLRequest(url: endpoint)
-            request.cachePolicy = .reloadIgnoringLocalCacheData
-            request.timeoutInterval = 20
-            request.setValue("application/json", forHTTPHeaderField: "Accept")
-
-            let (data, response) = try await URLSession.shared.data(for: request)
-            guard let httpResponse = response as? HTTPURLResponse else {
-                throw URLError(.badServerResponse)
-            }
-            print("DCGTV HTTP Status: \(httpResponse.statusCode)")
-            guard (200...299).contains(httpResponse.statusCode) else {
-                let body = String(data: data, encoding: .utf8) ?? ""
-                print("DCGTV server response: \(body)")
-                throw NSError(domain: "DCGTV", code: httpResponse.statusCode,
-                              userInfo: [NSLocalizedDescriptionKey: "Server returned HTTP \(httpResponse.statusCode)"])
-            }
-
-            let decoded = try JSONDecoder().decode(StreamResponse.self, from: data)
+            let decoded = try await DCGNetworking.fetchJSON(StreamResponse.self, from: endpoint)
             streams = decoded.streams
                 .filter { $0.isLive || $0.status.lowercased() == "upcoming" }
                 .sorted { a, b in
@@ -84,9 +63,7 @@ final class StreamService: ObservableObject {
             lastUpdated = Date()
             print("DCGTV: Loaded \(streams.count) broadcasts and \(replays.count) replays")
         } catch {
-            let nsError = error as NSError
-            if error is CancellationError ||
-               (nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled) {
+            if DCGNetworking.isCancellation(error) {
                 print("DCGTV: Request cancelled")
                 lastAttempt = nil
                 return
