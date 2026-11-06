@@ -75,25 +75,17 @@ struct DCGTVRootView: View {
                 )
             }
         }
-        .task {
-            await refreshAll()
+        .task(id: scenePhase) {
+            streams.expireStatusIfNeeded()
+            guard scenePhase == .active else { return }
+            await streams.refreshWhileActive()
         }
-        .onChange(of: scenePhase) { _, newPhase in
-            if newPhase == .active {
-                Task {
-                    await refreshAll()
-                }
-            }
+        .task(id: scenePhase) {
+            guard scenePhase == .active else { return }
+            async let gamesRefresh: Void = games.refreshKeepingRequestAlive()
+            async let resultsRefresh: Void = results.refreshKeepingRequestAlive()
+            _ = await (gamesRefresh, resultsRefresh)
         }
-    }
-
-    // Streams, games, and results are independent endpoints, so fetch them
-    // concurrently instead of serializing three round trips.
-    private func refreshAll() async {
-        async let streamsRefresh: Void = streams.refreshKeepingRequestAlive()
-        async let gamesRefresh: Void = games.refreshKeepingRequestAlive()
-        async let resultsRefresh: Void = results.refreshKeepingRequestAlive()
-        _ = await (streamsRefresh, gamesRefresh, resultsRefresh)
     }
 }
 
