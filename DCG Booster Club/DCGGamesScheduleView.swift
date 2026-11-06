@@ -452,14 +452,14 @@ struct DCGGameCard: View {
 
                 Link(destination: streamURL) {
                     Label(
-                        stream.isLive ? "LIVE — Watch on DCGTV" : "Watch on DCGTV",
+                        "Watch on DCGTV",
                         systemImage: "play.rectangle.fill"
                     )
                     .font(.subheadline.bold())
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
                     .padding(12)
-                    .background(stream.isLive ? Color.red : Color.dcgRed)
+                    .background(Color.dcgRed)
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                 }
             }
@@ -729,11 +729,11 @@ struct DCGGameDetailView: View {
             Text("Watch This Game")
                 .font(.title3.bold())
 
-            if let url = dcgtvURL, let stream {
+            if let url = dcgtvURL {
                 Link(destination: url) {
                     HStack {
                         Label(
-                            stream.isLive ? "Watch Live on DCGTV" : "Watch on DCGTV",
+                            "Watch on DCGTV",
                             systemImage: "play.rectangle.fill"
                         )
                         Spacer()
