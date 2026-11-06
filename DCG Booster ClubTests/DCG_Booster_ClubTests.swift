@@ -127,4 +127,177 @@ struct DCG_Booster_ClubTests {
         #expect(service.isStatusCurrent)
         #expect(service.errorMessage == nil)
     }
+
+    @Test func liveStatusExpiresAtTwoMinutesAndRefreshRestoresIt() async {
+        var now = Date(timeIntervalSince1970: 1_000)
+        let fresh = response
+        let service = StreamService(
+            now: { now }, loadCache: { nil }, saveCache: { _ in },
+            fetch: { fresh }
+        )
+        await service.loadStreams()
+        now += 119
+        service.expireStatusIfNeeded()
+        #expect(service.isStatusCurrent)
+
+        now += 1
+        service.expireStatusIfNeeded()
+        #expect(!service.isStatusCurrent)
+        #expect(service.streams.first?.id == "live")
+        #expect(service.errorMessage == nil)
+
+        await service.loadStreams()
+        #expect(service.isStatusCurrent)
+        #expect(service.lastUpdated == now)
+    }
+
+    @Test func clockMovingBackwardInvalidatesStatus() async {
+        var now = Date(timeIntervalSince1970: 1_000)
+        let fresh = response
+        let service = StreamService(
+            now: { now }, loadCache: { nil }, saveCache: { _ in },
+            fetch: { fresh }
+        )
+        await service.loadStreams()
+        now -= 1
+        service.expireStatusIfNeeded()
+        #expect(!service.isStatusCurrent)
+        await service.loadStreams()
+        #expect(service.isStatusCurrent)
+    }
+
+    @Test func activeLoopRetriesAfterOneMinuteAndRecovers() async {
+        var now = Date(timeIntervalSince1970: 1_000)
+        var attempts = 0
+        var refreshSleeps = 0
+        let fresh = response
+        let service = StreamService(
+            now: { now },
+            sleep: { delay in
+                // Advance one polling interval, then end both test loops.
+                guard delay == 60 else { throw CancellationError() }
+                refreshSleeps += 1
+                guard refreshSleeps == 1 else { throw CancellationError() }
+                now += delay
+            },
+            loadCache: { nil }, saveCache: { _ in },
+            fetch: {
+                attempts += 1
+                if attempts == 1 { throw URLError(.notConnectedToInternet) }
+                return fresh
+            }
+        )
+        await service.refreshWhileActive()
+        #expect(attempts == 2)
+        #expect(refreshSleeps == 2)
+        #expect(service.isStatusCurrent)
+        #expect(service.errorMessage == nil)
+    }
+
+    @Test func freshnessExpiresEvenWhileRefreshIsSuspended() async {
+        var now = Date(timeIntervalSince1970: 1_000)
+        let fresh = response
+        let started = AsyncStream<Void>.makeStream()
+        var pendingFetch: CheckedContinuation<StreamResponse, Error>?
+        var attempts = 0
+        var expirySleeps = 0
+        var service: StreamService?
+        let subject = StreamService(
+            now: { now },
+            sleep: { delay in
+                guard delay != 60 else { throw CancellationError() }
+                expirySleeps += 1
+                if expirySleeps == 1 {
+                    // Wait until the network request is suspended.
+                    for await _ in started.stream { break }
+                    await service?.loadStreams(force: true)
+                    #expect(attempts == 2)
+                    now += delay
+                } else {
+                    #expect(service?.isLoading == true)
+                    #expect(service?.isStatusCurrent == false)
+                    pendingFetch?.resume(throwing: CancellationError())
+                    pendingFetch = nil
+                    throw CancellationError()
+                }
+            },
+            loadCache: { nil }, saveCache: { _ in },
+            fetch: {
+                attempts += 1
+                if attempts == 1 { return fresh }
+                return try await withCheckedThrowingContinuation { continuation in
+                    pendingFetch = continuation
+                    started.continuation.yield(())
+                }
+            }
+        )
+        service = subject
+        await subject.loadStreams()
+        now += 61
+        await subject.refreshWhileActive()
+        #expect(expirySleeps == 2)
+        #expect(!subject.isStatusCurrent)
+        #expect(subject.streams.first?.id == "live")
+        #expect(!subject.isLoading)
+        started.continuation.finish()
+    }
+
+    @Test func cancellingActiveLoopStopsBothSleeps() async {
+        let sleeping = AsyncStream<Void>.makeStream()
+        var attempts = 0
+        var cancelledSleeps = 0
+        let fresh = response
+        let service = StreamService(
+            sleep: { _ in
+                sleeping.continuation.yield(())
+                do {
+                    try await Task.sleep(for: .seconds(3_600))
+                } catch {
+                    cancelledSleeps += 1
+                    throw error
+                }
+            },
+            loadCache: { nil }, saveCache: { _ in },
+            fetch: { attempts += 1; return fresh }
+        )
+        let task = Task { await service.refreshWhileActive() }
+        var count = 0
+        for await _ in sleeping.stream {
+            count += 1
+            if count == 2 { break }
+        }
+        task.cancel()
+        await task.value
+        #expect(attempts == 1)
+        #expect(cancelledSleeps == 2)
+        sleeping.continuation.finish()
+    }
+
+    @Test func cancelledFetchCannotPublishLateSuccess() async {
+        let started = AsyncStream<Void>.makeStream()
+        var pendingFetch: CheckedContinuation<StreamResponse, Never>?
+        var saves = 0
+        let fresh = response
+        let service = StreamService(
+            loadCache: { nil }, saveCache: { _ in saves += 1 },
+            fetch: {
+                await withCheckedContinuation { continuation in
+                    pendingFetch = continuation
+                    started.continuation.yield(())
+                }
+            }
+        )
+        let task = Task { await service.loadStreams() }
+        for await _ in started.stream { break }
+        task.cancel()
+        pendingFetch?.resume(returning: fresh)
+        await task.value
+
+        #expect(!service.isStatusCurrent)
+        #expect(service.lastUpdated == nil)
+        #expect(service.streams.isEmpty)
+        #expect(service.errorMessage == nil)
+        #expect(saves == 0)
+        started.continuation.finish()
+    }
 }

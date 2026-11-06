@@ -40,10 +40,17 @@ final class StreamService: ObservableObject {
 
     private var lastAttempt: Date?
     private let minimumRefreshInterval: TimeInterval = 60
+    private let maximumStatusAge: TimeInterval = 120
+    private let now: @MainActor () -> Date
+    private let sleep: @MainActor (TimeInterval) async throws -> Void
     private let fetch: @MainActor () async throws -> StreamResponse
     private let saveCache: @MainActor (StreamResponse) -> Void
 
     init(
+        now: @escaping @MainActor () -> Date = { Date() },
+        sleep: @escaping @MainActor (TimeInterval) async throws -> Void = {
+            try await Task.sleep(for: .seconds($0))
+        },
         loadCache: @MainActor () -> (value: StreamResponse, savedAt: Date)? = {
             DCGCache.load(StreamResponse.self, from: "streams.json")
         },
@@ -57,6 +64,8 @@ final class StreamService: ObservableObject {
             return try await DCGNetworking.fetchJSON(StreamResponse.self, from: url)
         }
     ) {
+        self.now = now
+        self.sleep = sleep
         self.fetch = fetch
         self.saveCache = saveCache
         if let cached = loadCache() {
@@ -66,19 +75,23 @@ final class StreamService: ObservableObject {
     }
 
     func loadStreams(force: Bool = false) async {
-        guard !isLoading else { return }
-        if !force, let lastAttempt,
-           Date().timeIntervalSince(lastAttempt) < minimumRefreshInterval { return }
+        expireStatusIfNeeded()
+        guard !Task.isCancelled, !isLoading else { return }
+        if !force, let lastAttempt {
+            let elapsed = now().timeIntervalSince(lastAttempt)
+            if elapsed >= 0 && elapsed < minimumRefreshInterval { return }
+        }
 
-        lastAttempt = Date()
+        lastAttempt = now()
         isLoading = true
         // Keep the failure visible while retrying; only success restores confidence.
         defer { isLoading = false }
 
         do {
             let decoded = try await fetch()
+            try Task.checkCancellation()
             apply(decoded)
-            lastUpdated = Date()
+            lastUpdated = now()
             errorMessage = nil
             isStatusCurrent = true
             saveCache(decoded)
@@ -92,6 +105,53 @@ final class StreamService: ObservableObject {
             isStatusCurrent = false
             errorMessage = error.localizedDescription
             print("DCGTV API Error: \(error)")
+        }
+    }
+
+    // Called on activation as well as by the independent freshness task.
+    // A clock correction must not make an old response appear fresh.
+    func expireStatusIfNeeded() {
+        guard isStatusCurrent, let lastUpdated else { return }
+        let age = now().timeIntervalSince(lastUpdated)
+        if age < 0 || age >= maximumStatusAge {
+            isStatusCurrent = false
+        }
+    }
+
+    // The caller owns this task's lifetime. Both children cancel when the
+    // scene becomes inactive; automatic requests do not outlive that task.
+    func refreshWhileActive() async {
+        expireStatusIfNeeded()
+        async let refreshes: Void = refreshPeriodically()
+        async let freshness: Void = monitorFreshness()
+        _ = await (refreshes, freshness)
+    }
+
+    private func refreshPeriodically() async {
+        while !Task.isCancelled {
+            await loadStreams()
+            do {
+                try await sleep(minimumRefreshInterval)
+            } catch {
+                return
+            }
+        }
+    }
+
+    private func monitorFreshness() async {
+        while !Task.isCancelled {
+            expireStatusIfNeeded()
+            let delay: TimeInterval
+            if isStatusCurrent, let lastUpdated {
+                delay = max(1, maximumStatusAge - now().timeIntervalSince(lastUpdated))
+            } else {
+                delay = maximumStatusAge
+            }
+            do {
+                try await sleep(delay)
+            } catch {
+                return
+            }
         }
     }
 
