@@ -36,14 +36,30 @@ final class StreamService: ObservableObject {
     @Published private(set) var isLoading = false
     @Published private(set) var errorMessage: String?
     @Published private(set) var lastUpdated: Date?
+    @Published private(set) var isStatusCurrent = false
 
     private var lastAttempt: Date?
     private let minimumRefreshInterval: TimeInterval = 60
-    private let endpoint = URL(string: "https://dcgboosterclub.com/wp-json/dcg/v1/streams")!
-    private let cacheFilename = "streams.json"
+    private let fetch: @MainActor () async throws -> StreamResponse
+    private let saveCache: @MainActor (StreamResponse) -> Void
 
-    init() {
-        if let cached = DCGCache.load(StreamResponse.self, from: cacheFilename) {
+    init(
+        loadCache: @MainActor () -> (value: StreamResponse, savedAt: Date)? = {
+            DCGCache.load(StreamResponse.self, from: "streams.json")
+        },
+        saveCache: @escaping @MainActor (StreamResponse) -> Void = {
+            DCGCache.save($0, as: "streams.json")
+        },
+        fetch: @escaping @MainActor () async throws -> StreamResponse = {
+            guard let url = URL(string: "https://dcgboosterclub.com/wp-json/dcg/v1/streams") else {
+                throw URLError(.badURL)
+            }
+            return try await DCGNetworking.fetchJSON(StreamResponse.self, from: url)
+        }
+    ) {
+        self.fetch = fetch
+        self.saveCache = saveCache
+        if let cached = loadCache() {
             apply(cached.value)
             lastUpdated = cached.savedAt
         }
@@ -56,14 +72,16 @@ final class StreamService: ObservableObject {
 
         lastAttempt = Date()
         isLoading = true
-        errorMessage = nil
+        // Keep the failure visible while retrying; only success restores confidence.
         defer { isLoading = false }
 
         do {
-            let decoded = try await DCGNetworking.fetchJSON(StreamResponse.self, from: endpoint)
+            let decoded = try await fetch()
             apply(decoded)
             lastUpdated = Date()
-            DCGCache.save(decoded, as: cacheFilename)
+            errorMessage = nil
+            isStatusCurrent = true
+            saveCache(decoded)
             print("DCGTV: Loaded \(streams.count) broadcasts and \(replays.count) replays")
         } catch {
             if DCGNetworking.isCancellation(error) {
@@ -71,6 +89,7 @@ final class StreamService: ObservableObject {
                 lastAttempt = nil
                 return
             }
+            isStatusCurrent = false
             errorMessage = error.localizedDescription
             print("DCGTV API Error: \(error)")
         }

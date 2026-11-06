@@ -97,6 +97,46 @@ struct DCGTVRootView: View {
     }
 }
 
+// Shared by Home, Watch, and Schedule so a failed request never looks like
+// a confirmed empty schedule. Cached links remain usable during an outage.
+private struct DCGBroadcastStatusView: View {
+    @ObservedObject var service: StreamService
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if service.isLoading {
+                ProgressView("Updating broadcasts…")
+            }
+
+            if service.errorMessage != nil {
+                Text(service.lastUpdated == nil
+                     ? "Broadcasts couldn't be loaded. Check your connection and try again."
+                     : "Couldn't refresh broadcasts. Showing saved information; live status is unverified.")
+                    .font(.subheadline)
+            } else if !service.isStatusCurrent, service.lastUpdated != nil {
+                Text("Showing saved broadcasts. Live status is unverified until refreshed.")
+                    .font(.subheadline)
+            } else if !service.isStatusCurrent, !service.isLoading {
+                Text("Broadcasts haven't been loaded yet.")
+                    .font(.subheadline)
+            }
+
+            if let lastUpdated = service.lastUpdated {
+                Text("Last updated: \(lastUpdated, format: .dateTime.month().day().hour().minute())")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            if !service.isStatusCurrent {
+                Button("Retry") {
+                    Task { await service.refreshKeepingRequestAlive(force: true) }
+                }
+                .disabled(service.isLoading)
+            }
+        }
+    }
+}
+
 // MARK: - Home Screen
 
 private struct DCGTVHomeScreen: View {
@@ -178,21 +218,17 @@ private struct DCGTVHomeScreen: View {
 
                     if let featuredStream {
 
-                        StreamCardView(stream: featuredStream)
+                        StreamCardView(stream: featuredStream, isStatusCurrent: streams.isStatusCurrent)
 
-                    } else if streams.isLoading {
-
-                        ProgressView("Loading broadcasts...")
-                            .frame(maxWidth: .infinity)
-                            .padding()
-
-                    } else {
+                    } else if streams.isStatusCurrent {
 
                         emptyMessage(
                             "No broadcasts scheduled",
                             subtitle: "Check back for the next DCGTV event."
                         )
                     }
+
+                    DCGBroadcastStatusView(service: streams)
 
                     Button {
                         selectedTab = .schedule
@@ -531,7 +567,7 @@ private struct DCGHomeGameCard: View {
                     if let url = broadcastURL {
                         Link(destination: url) {
                             Label(
-                                stream?.isLive == true ? "Watch Live" : "Watch on DCGTV",
+                                "Watch on DCGTV",
                                 systemImage: "play.fill"
                             )
                         }
@@ -619,6 +655,8 @@ private struct DCGTVWatchScreen: View {
                        .foregroundStyle(.secondary)
                }
 
+               DCGBroadcastStatusView(service: streams)
+
                // MARK: Live Broadcasts
 
                VStack(alignment: .leading, spacing: 14) {
@@ -628,12 +666,12 @@ private struct DCGTVWatchScreen: View {
                        Image(systemName: "dot.radiowaves.left.and.right")
                            .foregroundStyle(Color.dcgRed)
 
-                       Text("Live Now")
+                       Text(streams.isStatusCurrent ? "Live Now" : "Live Status Unverified")
                            .font(.title2.bold())
 
                        Spacer()
 
-                       if !liveStreams.isEmpty {
+                       if !liveStreams.isEmpty && streams.isStatusCurrent {
                            Text("LIVE")
                                .font(.caption2.bold())
                                .foregroundStyle(.white)
@@ -648,7 +686,7 @@ private struct DCGTVWatchScreen: View {
 
                        VStack(alignment: .leading, spacing: 8) {
 
-                           Text("Nothing live right now")
+                           Text(streams.isStatusCurrent ? "Nothing live right now" : "Live status is unavailable")
                                .font(.headline)
 
                            Text("Check the Schedule tab for upcoming broadcasts.")
@@ -670,7 +708,7 @@ private struct DCGTVWatchScreen: View {
                    } else {
 
                        ForEach(liveStreams) { stream in
-                           StreamCardView(stream: stream)
+                           StreamCardView(stream: stream, isStatusCurrent: streams.isStatusCurrent)
                        }
                    }
                }
@@ -741,7 +779,7 @@ private struct DCGTVWatchScreen: View {
                    } else {
 
                        ForEach(recentBroadcasts) { stream in
-                           StreamCardView(stream: stream)
+                           StreamCardView(stream: stream, isStatusCurrent: streams.isStatusCurrent)
                        }
                    }
                }
@@ -772,22 +810,6 @@ private struct DCGTVWatchScreen: View {
                    .clipShape(
                        RoundedRectangle(cornerRadius: 14)
                    )
-               }
-
-               // MARK: Status
-
-               if let lastUpdated = streams.lastUpdated {
-
-                   Text("Updated \(lastUpdated, style: .relative) ago")
-                       .font(.caption)
-                       .foregroundStyle(.secondary)
-               }
-
-               if streams.errorMessage != nil {
-
-                   Text("Couldn't refresh. Showing previous results.")
-                       .font(.caption)
-                       .foregroundStyle(.orange)
                }
            }
            .padding(16)
@@ -848,7 +870,9 @@ private struct DCGTVScheduleScreen: View {
                 Text("Upcoming DCGTV Livestreams")
                     .font(.title2.bold())
 
-                if scheduled.isEmpty {
+                DCGBroadcastStatusView(service: streams)
+
+                if scheduled.isEmpty && streams.isStatusCurrent {
 
                     emptyMessage(
                         "No upcoming broadcasts",
@@ -858,7 +882,7 @@ private struct DCGTVScheduleScreen: View {
                 } else {
 
                     ForEach(scheduled) { stream in
-                        StreamCardView(stream: stream)
+                        StreamCardView(stream: stream, isStatusCurrent: streams.isStatusCurrent)
                     }
                 }
 

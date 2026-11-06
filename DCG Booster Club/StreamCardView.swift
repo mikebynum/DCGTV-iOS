@@ -3,12 +3,13 @@ import SwiftUI
 struct StreamCardView: View {
 
    let stream: DCGStream
+   let isStatusCurrent: Bool
 
     @State private var showVideo = false
 
-   private var streamActionTitle: String {
+   private var streamActionTitle: LocalizedStringKey {
        if stream.isLive {
-           return "Watch Live"
+           return isStatusCurrent ? "Watch Live" : "View Stream"
        } else if stream.status.lowercased() == "upcoming" {
            return "View Stream"
        } else {
@@ -71,11 +72,11 @@ struct StreamCardView: View {
 
                    if stream.isLive {
                        Label(
-                           "LIVE NOW",
+                           isStatusCurrent ? "LIVE NOW" : "LIVE AT LAST UPDATE",
                            systemImage: "circle.fill"
                        )
                        .font(.caption2.bold())
-                       .foregroundStyle(.red)
+                       .foregroundStyle(isStatusCurrent ? .red : .secondary)
                    }
 
                    Text(stream.title)
