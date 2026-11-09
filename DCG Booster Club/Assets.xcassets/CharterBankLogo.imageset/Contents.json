@@ -1,0 +1,12 @@
+{
+  "images": [
+    {
+      "filename": "CharterBankLogo.png",
+      "idiom": "universal"
+    }
+  ],
+  "info": {
+    "author": "xcode",
+    "version": 1
+  }
+}
