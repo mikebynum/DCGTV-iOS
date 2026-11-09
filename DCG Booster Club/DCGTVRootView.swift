@@ -196,6 +196,8 @@ private struct DCGTVHomeScreen: View {
                     .frame(maxWidth: .infinity)
                     .padding(.top, 10)
 
+                DCGLivestreamSponsorBanner()
+
                 Text("Mustang Athletics & Activities")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
@@ -652,6 +654,8 @@ private struct DCGTVWatchScreen: View {
                // MARK: Live Broadcasts
 
                VStack(alignment: .leading, spacing: 14) {
+
+                   DCGLivestreamSponsorBanner()
 
                    HStack {
 
