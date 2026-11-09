@@ -17,12 +17,11 @@ struct StreamCardView: View {
        }
    }
 
-   // SFSafariViewController requires an http/https URL; validate before
-   // presenting so a malformed CMS link can't crash the app.
+   // Only present HTTPS video URLs supplied by the CMS.
    private var validStreamURL: URL? {
        guard let url = URL(string: stream.url),
              let scheme = url.scheme?.lowercased(),
-             ["https", "http"].contains(scheme)
+             scheme == "https"
        else { return nil }
        return url
    }
