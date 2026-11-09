@@ -17,8 +17,7 @@ enum DCGNetworking {
         }
 
         guard (200...299).contains(httpResponse.statusCode) else {
-            let body = String(data: data, encoding: .utf8) ?? ""
-            print("DCGTV: \(url.lastPathComponent) returned HTTP \(httpResponse.statusCode): \(body)")
+            print("DCGTV: \(url.lastPathComponent) returned HTTP \(httpResponse.statusCode)")
             throw NSError(
                 domain: "DCGTV",
                 code: httpResponse.statusCode,

@@ -293,7 +293,7 @@ struct DCGPlaylistSectionsView: View {
 
         guard let url = URL(string: video.url),
               let scheme = url.scheme?.lowercased(),
-              ["https", "http"].contains(scheme)
+              scheme == "https"
         else {
             return
         }
