@@ -32,13 +32,13 @@ final class DCG_Booster_ClubUITests: XCTestCase {
         XCTAssertEqual(hero.frame.width / hero.frame.height, 2, accuracy: 0.02)
         XCTAssertEqual(hero.frame.minX, app.frame.minX, accuracy: 1)
         XCTAssertEqual(hero.frame.maxX, app.frame.maxX, accuracy: 1)
-        let container = app.otherElements["dcgtv.home.hero.container"]
-        XCTAssertTrue(container.exists)
+        let viewport = app.scrollViews.firstMatch
+        XCTAssertTrue(viewport.exists)
         // iPad retains its native top tab controls; iPhone artwork reaches y=0.
         if UIDevice.current.userInterfaceIdiom == .phone {
-            XCTAssertEqual(container.frame.minY, app.frame.minY, accuracy: 1)
+            XCTAssertEqual(viewport.frame.minY, app.frame.minY, accuracy: 1)
         }
-        XCTAssertGreaterThan(hero.frame.minY, container.frame.minY)
+        XCTAssertGreaterThan(hero.frame.minY, viewport.frame.minY)
         XCTAssertTrue(hero.label.contains("Charter Bank"))
         XCTAssertFalse(app.descendants(matching: .any)["DCGTV livestreams presented by Charter Bank"].exists)
         let home = XCTAttachment(screenshot: app.screenshot())

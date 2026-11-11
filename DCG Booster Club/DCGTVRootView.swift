@@ -461,8 +461,6 @@ private struct DCGHomeBrandHeader: View {
                 .accessibilityIdentifier("dcgtv.home.hero")
                 .accessibilityAddTraits(.isHeader)
         }
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("dcgtv.home.hero.container")
     }
 }
 
