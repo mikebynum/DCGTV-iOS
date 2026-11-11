@@ -616,6 +616,35 @@ private struct DCGHomeGameCard: View {
 
 // MARK: - Watch Screen
 
+private struct DCGWatchHeader: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 12) {
+                Image("DCGTVLogo")
+                    .renderingMode(.original)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 96, height: 54)
+                    .accessibilityLabel("DCGTV")
+                    .accessibilityIdentifier("dcgtv.watch.logo")
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Watch")
+                        .font(.title2.bold())
+                        .accessibilityAddTraits(.isHeader)
+                    Text("Live & on demand")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            DCGLivestreamSponsorBanner()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
 private struct DCGTVWatchScreen: View {
 
    @ObservedObject var streams: StreamService
@@ -651,23 +680,13 @@ private struct DCGTVWatchScreen: View {
 
                // MARK: Header
 
-               VStack(alignment: .leading, spacing: 6) {
-
-                   Text("Watch DCGTV")
-                       .font(.largeTitle.bold())
-
-                   Text("Watch Mustang games live or on demand")
-                       .font(.subheadline)
-                       .foregroundStyle(.secondary)
-               }
+               DCGWatchHeader()
 
                DCGBroadcastStatusView(service: streams)
 
                // MARK: Live Broadcasts
 
                VStack(alignment: .leading, spacing: 14) {
-
-                   DCGLivestreamSponsorBanner()
 
                    HStack {
 
