@@ -340,3 +340,23 @@ struct DCGScheduleFilterTests {
                                         sport: "Wrestling", level: "All Levels", query: "").isEmpty)
     }
 }
+
+struct DCGFeaturedTitleTests {
+    private func stream(_ title: String, start: String? = "2026-11-18T00:30:00Z") -> DCGStream {
+        DCGStream(id: "featured", title: title, scheduledStart: start,
+                  status: "upcoming", thumbnail: "", url: "https://example.com/video")
+    }
+
+    @Test func removesRepeatedDateAndTimeFromFeaturedTitle() {
+        #expect(stream("Ames / Ballard at DCG Varsity Girls Wrestling 11-17-26 @ 6:30").featuredTitle
+                == "Ames / Ballard at DCG Varsity Girls Wrestling")
+        #expect(stream("DCG Basketball 11/17/2026 @ 6:30 PM").featuredTitle == "DCG Basketball")
+    }
+
+    @Test func preservesTitlesWithoutSeparateScheduledDateOrRecognizableSuffix() {
+        #expect(stream("DCG Wrestling 11-17-26 @ 6:30", start: nil).featuredTitle
+                == "DCG Wrestling 11-17-26 @ 6:30")
+        #expect(stream("DCG 2026 Senior Night").featuredTitle == "DCG 2026 Senior Night")
+        #expect(stream("11-17-26").featuredTitle == "11-17-26")
+    }
+}
