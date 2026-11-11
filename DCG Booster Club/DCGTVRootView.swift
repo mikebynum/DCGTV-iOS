@@ -189,8 +189,6 @@ private struct DCGTVHomeScreen: View {
 
                 DCGHomeBrandHeader()
 
-                DCGLivestreamSponsorBanner()
-
                 // Featured Broadcast
 
                 VStack(alignment: .leading, spacing: 12) {
@@ -403,51 +401,18 @@ private struct DCGTVHomeScreen: View {
     }
 }
 
-// Home-only branding; other screens keep their current layouts for later phases.
+// The approved banner includes both brands. Let its intrinsic aspect ratio set
+// the height on iPhone and iPad; fixed heights or clipping would cut off artwork.
 private struct DCGHomeBrandHeader: View {
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            let brandLayout = dynamicTypeSize.isAccessibilitySize
-                ? AnyLayout(VStackLayout(alignment: .leading, spacing: 14))
-                : AnyLayout(HStackLayout(spacing: 14))
-            brandLayout {
-                Image("DCGTVLogo")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 100)
-                    .accessibilityHidden(true)
-                Text("DCGTV")
-                    .font(.largeTitle.bold().italic())
-                    .accessibilityLabel("DCGTV")
-            }
-
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Mustang Athletics\n& Activities")
-                    .font(.title.bold())
-                    .fixedSize(horizontal: false, vertical: true)
-                Text("Live and on demand.")
-                    .font(.subheadline)
-                    .foregroundStyle(.white.opacity(0.85))
-            }
-
-            Capsule()
-                .fill(Color.dcgRed)
-                .frame(width: 52, height: 4)
-                .accessibilityHidden(true)
-        }
-        .foregroundStyle(.white)
-        .padding(24)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background {
-            LinearGradient(
-                colors: [Color(white: 0.06), Color(white: 0.13), Color(red: 0.30, green: 0.02, blue: 0.07)],
-                startPoint: .topLeading, endPoint: .bottomTrailing
-            )
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 22))
-        .accessibilityAddTraits(.isHeader)
+        Image("DCGTVHomeHero")
+            .renderingMode(.original)
+            .resizable()
+            .scaledToFit()
+            .frame(maxWidth: .infinity)
+            .accessibilityLabel("DCGTV.com. Mustang Athletics. Live and On Demand. Presented by Charter Bank.")
+            .accessibilityIdentifier("dcgtv.home.hero")
+            .accessibilityAddTraits(.isHeader)
     }
 }
 
