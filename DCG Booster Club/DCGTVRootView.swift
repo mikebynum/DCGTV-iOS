@@ -868,7 +868,7 @@ private struct DCGTVScheduleScreen: View {
 
         ScrollView {
 
-            VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: 12) {
 
                 DCGScheduleHeader()
 
@@ -878,7 +878,7 @@ private struct DCGTVScheduleScreen: View {
                         limit: 10,
                         showHeading: false
                     )
-                    .padding(.top, 10)
+                    .padding(.top, 6)
                 } label: {
                     Label("Recent Results", systemImage: "trophy.fill")
                         .font(.title3.bold())
@@ -917,9 +917,11 @@ private struct DCGTVScheduleScreen: View {
                     )!
                 )
                 .foregroundStyle(Color.dcgRed)
+                .frame(minHeight: 44)
             }
             .frame(maxWidth: 760)
             .padding(16)
+            .padding(.bottom, 35)
             .frame(maxWidth: .infinity)
         }
         .background(Color(uiColor: .systemGroupedBackground))
