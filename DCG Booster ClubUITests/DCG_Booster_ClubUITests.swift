@@ -23,14 +23,44 @@ final class DCG_Booster_ClubUITests: XCTestCase {
     }
 
     @MainActor
-    func testExample() throws {
-        // UI tests must launch the application that they test.
+    func testHomeBrandingSponsorAndScheduleNavigation() throws {
         let app = XCUIApplication()
         app.launch()
 
-        // Use XCTAssert and related functions to verify your tests produce the correct results.
-        // XCUIAutomation Documentation
-        // https://developer.apple.com/documentation/xcuiautomation
+        XCTAssertTrue(app.staticTexts["Live and on demand."].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.descendants(matching: .any)["DCGTV livestreams presented by Charter Bank"].exists)
+        let home = XCTAttachment(screenshot: app.screenshot())
+        home.name = "Phase 1 Home"
+        home.lifetime = .keepAlways
+        add(home)
+
+        let schedule = app.buttons["View Broadcast Schedule"]
+        for _ in 0..<6 {
+            if schedule.isHittable { break }
+            app.swipeUp()
+        }
+        XCTAssertTrue(schedule.isHittable)
+        let broadcast = XCTAttachment(screenshot: app.screenshot())
+        broadcast.name = "Featured broadcast and schedule link"
+        broadcast.lifetime = .keepAlways
+        add(broadcast)
+        schedule.tap()
+        XCTAssertTrue(app.staticTexts["Upcoming DCGTV Livestreams"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "label == %@ AND selected == true", "Schedule")).firstMatch.exists)
+        XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "label == %@", "Shows")).firstMatch.exists)
+    }
+
+    @MainActor
+    func testHomeAtAccessibilityTextSize() throws {
+        let app = XCUIApplication()
+        app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Live and on demand."].waitForExistence(timeout: 10))
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Home accessibility text size"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+        XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "label == %@ AND selected == true", "Home")).firstMatch.exists)
     }
 
     @MainActor
