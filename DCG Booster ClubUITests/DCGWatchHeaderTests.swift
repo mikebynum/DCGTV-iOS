@@ -23,25 +23,38 @@ final class DCGWatchHeaderTests: XCTestCase {
         }
         app.launch()
         app.buttons.matching(NSPredicate(format: "label == %@", "Watch")).firstMatch.tap()
-        let logo = app.images["dcgtv.watch.logo"]
-        XCTAssertTrue(logo.waitForExistence(timeout: 10))
-        XCTAssertTrue(logo.isHittable)
-        XCTAssertEqual(logo.frame.width, 96, accuracy: 1)
-        let sponsor = app.descendants(matching: .any)["DCGTV livestreams presented by Charter Bank"]
-        XCTAssertTrue(sponsor.isHittable)
-        XCTAssertGreaterThanOrEqual(sponsor.frame.height, 44)
-        XCTAssertGreaterThanOrEqual(sponsor.frame.minY, logo.frame.maxY)
-        XCTAssertLessThanOrEqual(sponsor.frame.maxX, app.frame.maxX - 15)
-        XCTAssertFalse(app.staticTexts["Watch Mustang games live or on demand"].exists)
+        let header = app.descendants(matching: .any)["dcgtv.watch.header"]
+        XCTAssertTrue(header.waitForExistence(timeout: 10))
+        XCTAssertTrue(header.isHittable)
+        XCTAssertEqual(header.frame.width / header.frame.height, 3, accuracy: 0.02)
+        XCTAssertEqual(header.frame.minX, app.frame.minX + 16, accuracy: 1)
+        XCTAssertEqual(header.frame.maxX, app.frame.maxX - 16, accuracy: 1)
+        XCTAssertTrue(header.label.contains("Charter Bank"))
+        XCTAssertFalse(app.images["dcgtv.watch.logo"].exists)
+        XCTAssertFalse(app.staticTexts["Presented by"].exists)
         if UIDevice.current.userInterfaceIdiom == .phone,
            let statusBar = app.statusBars.allElementsBoundByIndex.first {
-            XCTAssertGreaterThanOrEqual(logo.frame.minY, statusBar.frame.maxY)
+            XCTAssertGreaterThanOrEqual(header.frame.minY, statusBar.frame.maxY)
         }
         let capture = XCTAttachment(screenshot: app.screenshot())
-        capture.name = accessibility ? "Watch compact header accessibility" : "Watch compact header"
+        capture.name = accessibility ? "Watch banner accessibility" : "Watch banner"
         capture.lifetime = .keepAlways
         add(capture)
-        app.buttons.matching(NSPredicate(format: "label == %@", "Home")).firstMatch.tap()
+        let browse = app.links["Browse All Broadcasts"]
+        for _ in 0..<25 {
+            if browse.isHittable { break }
+            app.swipeUp()
+        }
+        XCTAssertTrue(browse.isHittable)
+        let home = app.buttons.matching(NSPredicate(format: "label == %@", "Home")).firstMatch
+        if UIDevice.current.userInterfaceIdiom == .phone {
+            XCTAssertLessThanOrEqual(browse.frame.maxY, home.frame.minY)
+        }
+        let replays = XCTAttachment(screenshot: app.screenshot())
+        replays.name = accessibility ? "Watch replay cards accessibility" : "Watch replay cards"
+        replays.lifetime = .keepAlways
+        add(replays)
+        home.tap()
         XCTAssertTrue(app.images["dcgtv.home.hero"].waitForExistence(timeout: 5))
     }
 
@@ -50,7 +63,7 @@ final class DCGWatchHeaderTests: XCTestCase {
         let app = XCUIApplication()
         app.launch()
         app.buttons.matching(NSPredicate(format: "label == %@", "Watch")).firstMatch.tap()
-        XCTAssertTrue(app.images["dcgtv.watch.logo"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.descendants(matching: .any)["dcgtv.watch.header"].waitForExistence(timeout: 10))
         let replay = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Watch Replay")).firstMatch
         // CMS content is live; scroll through away streams and replays if available.
         for _ in 0..<20 {
