@@ -6,22 +6,19 @@ struct DCGLivestreamSponsorBanner: View {
 
     var body: some View {
         Link(destination: sponsorURL) {
-            VStack(spacing: 8) {
-                Text("DCGTV Livestreams presented by")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(Color.black.opacity(0.65))
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                Image("CharterBankLogo")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(maxWidth: 180)
-                    .frame(height: 58)
-                    .accessibilityHidden(true)
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 10) {
+                    acknowledgment
+                    sponsorLogo
+                }
+                VStack(alignment: .leading, spacing: 4) {
+                    acknowledgment
+                    sponsorLogo
+                }
             }
-            .frame(maxWidth: .infinity)
-            .padding(14)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .frame(minHeight: 44)
             // Preserve the original logo's contrast even in dark mode.
             .background(Color.white)
             .clipShape(RoundedRectangle(cornerRadius: 14))
@@ -35,4 +32,20 @@ struct DCGLivestreamSponsorBanner: View {
         .accessibilityLabel("DCGTV livestreams presented by Charter Bank")
         .accessibilityHint("Opens the Charter Bank website")
     }
+    private var acknowledgment: some View {
+        Text("Presented by")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(Color.black.opacity(0.65))
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var sponsorLogo: some View {
+        Image("CharterBankLogo")
+            .renderingMode(.original)
+            .resizable()
+            .scaledToFit()
+            .frame(width: 116, height: 34)
+            .accessibilityHidden(true)
+    }
+
 }
