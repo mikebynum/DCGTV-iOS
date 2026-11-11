@@ -187,21 +187,9 @@ private struct DCGTVHomeScreen: View {
 
             VStack(alignment: .leading, spacing: 24) {
 
-                // DCGTV Logo
-
-                Image("DCGTVLogo")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(maxWidth: 220)
-                    .frame(maxWidth: .infinity)
-                    .padding(.top, 10)
+                DCGTVHeroHeader()
 
                 DCGLivestreamSponsorBanner()
-
-                Text("Mustang Athletics & Activities")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity)
 
                 // Featured Broadcast
 
@@ -394,6 +382,8 @@ private struct DCGTVHomeScreen: View {
                 }
             }
             .padding(16)
+            .frame(maxWidth: 960)
+            .frame(maxWidth: .infinity)
             .padding(.bottom, 35)
         }
         .background(Color(uiColor: .systemGroupedBackground))
