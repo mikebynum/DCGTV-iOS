@@ -150,17 +150,44 @@ final class DCGGamesService: ObservableObject {
     }
 }
 
+// MARK: - Schedule filtering
+
+enum DCGScheduleSelection: String, CaseIterable {
+    case upcoming = "Upcoming"
+    case starred = "Starred"
+    case allSports = "All Sports"
+}
+
+enum DCGScheduleFilter {
+    static func games(_ games: [DCGGame], selection: DCGScheduleSelection,
+                      favorites: Set<String>, sport: String, level: String,
+                      query: String, now: Date = .now, calendar: Calendar = .current) -> [DCGGame] {
+        let query = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        let today = calendar.startOfDay(for: now)
+        return games.filter { game in
+            // Keep undated events discoverable rather than silently dropping them.
+            (selection == .allSports || game.startDate.map { $0 >= today } ?? true) &&
+            (selection != .starred || favorites.contains(game.sport)) &&
+            (sport == "All Sports" || game.sport == sport) &&
+            (level == "All Levels" || game.level == level) &&
+            (query.isEmpty || game.displayTitle.localizedCaseInsensitiveContains(query))
+        }.sorted { ($0.startDate ?? .distantFuture) < ($1.startDate ?? .distantFuture) }
+    }
+}
+
 // MARK: - Native Games Schedule
 
 struct DCGGamesScheduleView: View {
-
     @ObservedObject var service: DCGGamesService
     @ObservedObject var streams: StreamService
     @Binding var selectedGame: DCGGame?
-
+    @AppStorage("dcgtv.favoriteSports") private var favoriteSportsRaw = ""
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @State private var selection: DCGScheduleSelection = .upcoming
     @State private var selectedSport = "All Sports"
     @State private var selectedLevel = "All Levels"
     @State private var searchText = ""
+    @State private var showingFavorites = false
 
     private struct GameDay: Identifiable {
         let date: Date
@@ -168,215 +195,224 @@ struct DCGGamesScheduleView: View {
         var id: Date { date }
     }
 
-    private var sports: [String] {
-        ["All Sports"] + Set(service.games.map(\.sport)).sorted()
+    private var favorites: Set<String> {
+        Set(favoriteSportsRaw.split(separator: "|").map(String.init))
     }
-
-    private var levels: [String] {
-        ["All Levels"] + Set(service.games.map(\.level)).sorted()
+    private var sports: [String] { ["All Sports"] + Set(service.games.map(\.sport)).sorted() }
+    private var levels: [String] { ["All Levels"] + Set(service.games.map(\.level)).sorted() }
+    private var hasFilters: Bool {
+        selectedSport != "All Sports" || selectedLevel != "All Levels" || !searchText.isEmpty
     }
-
+    private func resetFilters() {
+        selectedSport = "All Sports"
+        selectedLevel = "All Levels"
+        searchText = ""
+    }
     private var filteredGames: [DCGGame] {
-        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        return service.games.filter { game in
-            (selectedSport == "All Sports" || game.sport == selectedSport) &&
-            (selectedLevel == "All Levels" || game.level == selectedLevel) &&
-            (query.isEmpty || game.displayTitle.localizedCaseInsensitiveContains(query))
-        }
+        DCGScheduleFilter.games(service.games, selection: selection, favorites: favorites,
+                                sport: selectedSport, level: selectedLevel, query: searchText)
     }
-
     private var groupedGames: [GameDay] {
         let valid = filteredGames.compactMap { game -> (Date, DCGGame)? in
             guard let date = game.startDate else { return nil }
             return (Calendar.current.startOfDay(for: date), game)
         }
         let groups = Dictionary(grouping: valid, by: { $0.0 })
-        return groups.keys.sorted().map { date in
-            GameDay(
-                date: date,
-                games: (groups[date] ?? []).map { $0.1 }.sorted {
-                    ($0.startDate ?? .distantFuture) < ($1.startDate ?? .distantFuture)
-                }
-            )
-        }
+        return groups.keys.sorted().map { GameDay(date: $0, games: groups[$0, default: []].map { $0.1 }) }
+    }
+    private func startsWeek(at index: Int, in groups: [GameDay]) -> Bool {
+        index == 0 || Calendar.current.dateInterval(of: .weekOfYear, for: groups[index].date)?.start !=
+            Calendar.current.dateInterval(of: .weekOfYear, for: groups[index - 1].date)?.start
+    }
+    private func card(_ game: DCGGame) -> some View {
+        DCGGameCard(game: game, stream: DCGGameStreamMatcher.matchedStream(
+            for: game, in: service.games, broadcasts: streams.streams
+        ), onShowDetails: { selectedGame = game })
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Mustang Athletics")
-                    .font(.title2.bold())
-                Text("Upcoming DCG games and events")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-
-            HStack(spacing: 8) {
-                Image(systemName: "magnifyingglass")
-                    .foregroundStyle(.secondary)
-
-                TextField("Search opponent or team", text: $searchText)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-
-                if !searchText.isEmpty {
-                    Button {
-                        searchText = ""
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .background(Color(uiColor: .secondarySystemGroupedBackground))
-            .clipShape(Capsule())
-
-            // Menus remain usable when a calendar has dozens of sports and levels.
-            HStack(spacing: 10) {
-                Menu {
-                    Picker("Sport", selection: $selectedSport) {
-                        ForEach(sports, id: \.self) { sport in
-                            Text(sport).tag(sport)
-                        }
-                    }
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "sportscourt")
-                        Text(selectedSport)
-                            .lineLimit(1)
-                        Image(systemName: "chevron.down")
-                            .font(.caption2)
-                    }
-                    .font(.subheadline.bold())
-                    .foregroundStyle(Color.dcgRed)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 10)
-                    .background(Color(uiColor: .secondarySystemGroupedBackground))
-                    .clipShape(Capsule())
-                }
-
-                Menu {
-                    Picker("Level", selection: $selectedLevel) {
-                        ForEach(levels, id: \.self) { level in
-                            Text(level).tag(level)
-                        }
-                    }
-                } label: {
-                    HStack(spacing: 6) {
-                        Text(selectedLevel)
-                            .lineLimit(1)
-                        Image(systemName: "chevron.down")
-                            .font(.caption2)
-                    }
-                    .font(.subheadline.bold())
-                    .foregroundStyle(Color.dcgRed)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 10)
-                    .background(Color(uiColor: .secondarySystemGroupedBackground))
-                    .clipShape(Capsule())
-                }
-            }
-
-            if selectedSport != "All Sports" || selectedLevel != "All Levels" || !searchText.isEmpty {
-                Button("Clear filters") {
-                    selectedSport = "All Sports"
-                    selectedLevel = "All Levels"
-                    searchText = ""
-                }
-                .font(.caption.bold())
-                .tint(Color.dcgRed)
-            }
-
-            if service.isLoading && service.games.isEmpty {
-                ProgressView("Loading Mustang schedule...")
-                    .frame(maxWidth: .infinity)
-                    .padding(30)
-            } else if service.games.isEmpty {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("No games available")
-                        .font(.headline)
-                    if let error = service.errorMessage {
-                        Text(error)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    Button("Try Again") {
-                        Task { await service.refreshKeepingRequestAlive() }
-                    }
-                    .tint(Color.dcgRed)
-                }
-                .padding(20)
-            } else {
-                Text("\(filteredGames.count) upcoming events")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                if filteredGames.isEmpty {
-                    Text("No games match your filters.")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .padding()
-                } else {
-                    LazyVStack(alignment: .leading, spacing: 20) {
-                        ForEach(groupedGames) { group in
-                            VStack(alignment: .leading, spacing: 10) {
-                                HStack(spacing: 8) {
-                                    Text(
-                                        group.date,
-                                        format: .dateTime
-                                            .weekday(.wide)
-                                            .month(.abbreviated)
-                                            .day()
-                                    )
-                                    .font(.headline)
-
-                                    Spacer()
-
-                                    Text("\(group.games.count) \(group.games.count == 1 ? "event" : "events")")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-                                .padding(.top, 4)
-
-                                ForEach(group.games) { game in
-                                    DCGGameCard(
-                                        game: game,
-                                        stream: DCGGameStreamMatcher.matchedStream(
-                                            for: game,
-                                            in: service.games,
-                                            broadcasts: streams.streams
-                                        ),
-                                        onShowDetails: { selectedGame = game }
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
+        VStack(alignment: .leading, spacing: 20) {
+            selectionControls
+            favoriteChips
+            filters
+            schedule
             if let error = service.errorMessage, !service.games.isEmpty {
-                Text("Couldn't refresh: \(error)")
-                    .font(.caption)
-                    .foregroundStyle(.orange)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Couldn't refresh: \(error)").font(.caption)
+                    Button("Retry Schedule") { Task { await service.refreshKeepingRequestAlive() } }
+                        .frame(minHeight: 44)
+                }
             }
-
-            Link(
-                "View Full Schedule on Bound",
-                destination: URL(
-                    string: "https://www.gobound.com/ia/schools/dallascentergrimes"
-                )!
-            )
-            .font(.subheadline.bold())
-            .foregroundStyle(Color.dcgRed)
-            .padding(.vertical, 10)
+            Link(destination: URL(string: "https://www.gobound.com/ia/schools/dallascentergrimes")!) {
+                Label("View Full Schedule on Bound", systemImage: "arrow.up.right.square")
+                    .font(.subheadline.bold()).frame(minHeight: 44)
+            }
         }
-        .task {
-            await service.refreshKeepingRequestAlive()
+        .tint(Color.dcgRed)
+        .sheet(isPresented: $showingFavorites) {
+            DCGFavoriteSportsPicker(availableSports: Array(sports.dropFirst()), favoritesRaw: $favoriteSportsRaw)
+        }
+        .task { await service.refreshKeepingRequestAlive() }
+    }
+
+    private var selectionControls: some View {
+        // Equal-width buttons at standard sizes, full-width rows at accessibility sizes.
+        let layout = dynamicTypeSize.isAccessibilitySize ? AnyLayout(VStackLayout(spacing: 8)) : AnyLayout(HStackLayout(spacing: 6))
+        return layout {
+            ForEach(DCGScheduleSelection.allCases, id: \.self) { option in
+                Button {
+                    selection = option
+                    // All Sports must actually remove a previously selected sport.
+                    if option == .allSports { selectedSport = "All Sports" }
+                } label: {
+                    Text(option.rawValue).font(.subheadline.bold())
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .padding(.horizontal, 8)
+                        .foregroundStyle(selection == option ? Color.white : Color.primary)
+                        .background(selection == option ? Color.dcgRed : Color(uiColor: .secondarySystemGroupedBackground))
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(selection == option ? .isSelected : [])
+                .accessibilityIdentifier("dcgtv.schedule.\(option.rawValue)")
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Schedule selection")
+    }
+
+    private var favoriteChips: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Your sports").font(.headline).accessibilityAddTraits(.isHeader)
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 8) { favoriteButtons }
+                    .buttonStyle(.bordered).controlSize(.large)
+            } else {
+                ScrollView(.horizontal) {
+                    HStack(spacing: 8) { favoriteButtons }
+                        .buttonStyle(.bordered).controlSize(.large)
+                }
+            }
         }
     }
+
+    @ViewBuilder private var favoriteButtons: some View {
+        Button { showingFavorites = true } label: {
+            Label(favorites.isEmpty ? "Choose favorites" : "Edit favorites", systemImage: "star")
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .accessibilityIdentifier("dcgtv.schedule.favorites")
+        ForEach(favorites.sorted(), id: \.self) { sport in
+            Button {
+                selectedSport = selectedSport == sport ? "All Sports" : sport
+            } label: {
+                Label(sport, systemImage: selectedSport == sport ? "checkmark.circle.fill" : "star.fill")
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .accessibilityValue(selectedSport == sport ? "Filtering this sport" : "Not filtering")
+            .accessibilityAddTraits(selectedSport == sport ? .isSelected : [])
+        }
+    }
+
+    private var filters: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Image(systemName: "magnifyingglass").accessibilityHidden(true)
+                TextField("Search opponent or team", text: $searchText)
+                    .textInputAutocapitalization(.never).autocorrectionDisabled()
+                if !searchText.isEmpty {
+                    Button { searchText = "" } label: { Image(systemName: "xmark.circle.fill") }
+                        .frame(minWidth: 44, minHeight: 44).accessibilityLabel("Clear search")
+                }
+            }
+            .padding(.horizontal, 14).frame(minHeight: 48)
+            .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14))
+            ViewThatFits(in: .horizontal) {
+                HStack { sportPicker; levelPicker }
+                VStack(alignment: .leading) { sportPicker; levelPicker }
+            }
+            if hasFilters {
+                Button("Clear filters", action: resetFilters).frame(minHeight: 44)
+            }
+        }
+    }
+    private var sportPicker: some View {
+        Picker("Sport", selection: $selectedSport) {
+            ForEach(sports, id: \.self) { Text($0).tag($0) }
+        }
+        .pickerStyle(.menu).frame(minHeight: 44).accessibilityLabel("Filter sport")
+    }
+    private var levelPicker: some View {
+        Picker("Level", selection: $selectedLevel) {
+            ForEach(levels, id: \.self) { Text($0).tag($0) }
+        }
+        .pickerStyle(.menu).frame(minHeight: 44).accessibilityLabel("Filter level")
+    }
+
+    @ViewBuilder private var schedule: some View {
+        if service.isLoading && service.games.isEmpty {
+            ProgressView("Loading Mustang schedule…").frame(maxWidth: .infinity).padding(30)
+        } else if service.games.isEmpty {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("No games available").font(.headline)
+                Text(service.errorMessage ?? "Check back for new Mustang events.").font(.subheadline)
+                Button("Try Again") { Task { await service.refreshKeepingRequestAlive() } }.frame(minHeight: 44)
+            }
+        } else {
+            Text(selection == .allSports ? "All scheduled events" : selection == .starred ? "Starred sports • Today & ahead" : "Today & ahead")
+                .font(.title2.bold()).accessibilityAddTraits(.isHeader)
+            Text("\(filteredGames.count) \(filteredGames.count == 1 ? "event" : "events")")
+                .font(.subheadline).foregroundStyle(.secondary)
+            if filteredGames.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(selection == .starred && favorites.isEmpty ? "Choose the sports you follow" : "No games match this selection")
+                        .font(.headline)
+                    Text("Try another selection or clear your sport, level, and search filters.")
+                        .font(.subheadline).foregroundStyle(.secondary)
+                }.padding(20)
+            }
+            let groups = groupedGames
+            LazyVStack(alignment: .leading, spacing: 16) {
+                ForEach(Array(groups.enumerated()), id: \.element.id) { index, group in
+                    if startsWeek(at: index, in: groups), let week = Calendar.current.dateInterval(of: .weekOfYear, for: group.date) {
+                        Text("Week of \(week.start.formatted(.dateTime.month(.abbreviated).day().year()))")
+                            .font(.caption.bold()).foregroundStyle(.secondary).padding(.top, 8)
+                            .accessibilityAddTraits(.isHeader)
+                    }
+                    Text(group.date, format: .dateTime.weekday(.wide).month(.abbreviated).day())
+                        .font(.headline).accessibilityAddTraits(.isHeader)
+                    ForEach(group.games) { card($0) }
+                }
+                let undated = filteredGames.filter { $0.startDate == nil }
+                if !undated.isEmpty {
+                    Text("Date to be confirmed").font(.headline).accessibilityAddTraits(.isHeader)
+                    ForEach(undated) { card($0) }
+                }
+            }
+        }
+    }
+}
+
+struct DCGScheduleHeader: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("DCGTV • MUSTANG ATHLETICS", systemImage: "calendar")
+                .font(.caption.bold())
+            Text("Game day starts here.").font(.largeTitle.bold()).accessibilityAddTraits(.isHeader)
+                .fixedSize(horizontal: false, vertical: true)
+            Text("Follow your sports. Find your next Mustang event.")
+                .font(.subheadline)
+            Rectangle().fill(Color.dcgRed).frame(width: 56, height: 4).accessibilityHidden(true)
+        }
+        .foregroundStyle(.white)
+        .padding(24)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.black.gradient)
+        .clipShape(RoundedRectangle(cornerRadius: 24))
+        .accessibilityIdentifier("dcgtv.schedule.header")
+    }
+
 }
 
 // MARK: - Individual Game Card
@@ -391,20 +427,16 @@ struct DCGGameCard: View {
 
         VStack(alignment: .leading, spacing: 12) {
 
-            HStack {
-
-                Label(
-                    game.sport,
-                    systemImage: "sportscourt.fill"
-                )
-                .font(.caption.bold())
-                .foregroundStyle(Color.dcgRed)
-
-                Spacer()
-
-                Text(game.level)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .top) {
+                    Text(game.sport).font(.subheadline.bold()).foregroundStyle(Color.dcgRed)
+                    Spacer()
+                    Text(game.level).font(.caption).foregroundStyle(.secondary)
+                }
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(game.sport).font(.subheadline.bold()).foregroundStyle(Color.dcgRed)
+                    Text(game.level).font(.caption).foregroundStyle(.secondary)
+                }
             }
 
             Button(action: onShowDetails) {
@@ -423,8 +455,11 @@ struct DCGGameCard: View {
                 } icon: {
                     Image(systemName: "clock")
                 }
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .font(.title3.bold())
+                .foregroundStyle(.primary)
+            } else {
+                Label("Time to be confirmed", systemImage: "clock")
+                    .font(.subheadline).foregroundStyle(.secondary)
             }
 
             if let compactLocation = game.compactLocation {
@@ -501,10 +536,13 @@ struct DCGGameCard: View {
                 }
                 .font(.subheadline.bold())
                 .foregroundStyle(Color.dcgRed)
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Game details, \(game.displayTitle)")
         }
-        .padding(16)
+        .padding(18)
         .frame(
             maxWidth: .infinity,
             alignment: .leading

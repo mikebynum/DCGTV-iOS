@@ -301,3 +301,42 @@ struct DCG_Booster_ClubTests {
         started.continuation.finish()
     }
 }
+
+
+struct DCGScheduleFilterTests {
+    private func game(_ id: String, sport: String = "Football", level: String = "Varsity", start: String) -> DCGGame {
+        DCGGame(id: id, title: "Football: DCG vs Valley (Varsity)", sport: sport,
+                level: level, start: start, location: nil, status: nil, url: nil, externalStream: nil)
+    }
+
+    @Test func selectionsKeepTodayAndUndatedAndRespectFavorites() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let now = DCGDateParsing.flexibleISO8601("2026-11-10T18:00:00Z")!
+        let games = [
+            game("past", start: "2026-11-09T23:00:00Z"),
+            game("today", start: "2026-11-10T08:00:00Z"),
+            game("future", sport: "Wrestling", start: "2026-11-11T20:00:00Z"),
+            game("undated", start: "invalid")
+        ]
+        func ids(_ selection: DCGScheduleSelection, favorites: Set<String> = []) -> [String] {
+            DCGScheduleFilter.games(games, selection: selection, favorites: favorites,
+                                    sport: "All Sports", level: "All Levels", query: "",
+                                    now: now, calendar: calendar).map(\.id)
+        }
+        #expect(ids(.upcoming) == ["today", "future", "undated"])
+        #expect(ids(.starred).isEmpty)
+        #expect(ids(.starred, favorites: ["Football"]) == ["today", "undated"])
+        #expect(ids(.allSports) == ["past", "today", "future", "undated"])
+    }
+
+    @Test func sportLevelAndTrimmedSearchIntersect() {
+        let games = [game("varsity", start: "2026-11-10T20:00:00Z"),
+                     game("jv", level: "JV", start: "2026-11-10T18:00:00Z")]
+        let filtered = DCGScheduleFilter.games(games, selection: .allSports, favorites: [],
+                                               sport: "Football", level: "Varsity", query: "  vAlLeY  ")
+        #expect(filtered.map(\.id) == ["varsity"])
+        #expect(DCGScheduleFilter.games(games, selection: .allSports, favorites: [],
+                                        sport: "Wrestling", level: "All Levels", query: "").isEmpty)
+    }
+}

@@ -418,7 +418,7 @@ private struct DCGHomeBrandHeader: View {
 
 // MARK: - Favorite Sports Picker
 // AppStorage saves selections on this device, without an account or backend.
-private struct DCGFavoriteSportsPicker: View {
+struct DCGFavoriteSportsPicker: View {
 
     let availableSports: [String]
     @Binding var favoritesRaw: String
@@ -442,7 +442,7 @@ private struct DCGFavoriteSportsPicker: View {
         NavigationStack {
             List {
                 Section {
-                    Text("Choose the Mustang sports you follow. Their upcoming games will appear first on Home. Other games will still fill remaining spots.")
+                    Text("Choose the Mustang sports you follow. Their upcoming games appear on Home and in the Schedule’s Starred selection. Favorites are saved on this device.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
@@ -857,6 +857,8 @@ private struct DCGTVScheduleScreen: View {
 
             VStack(alignment: .leading, spacing: 18) {
 
+                DCGScheduleHeader()
+
                 DisclosureGroup(isExpanded: $showingRecentResults) {
                     DCGRecentResultsView(
                         service: results,
@@ -903,7 +905,9 @@ private struct DCGTVScheduleScreen: View {
                 )
                 .foregroundStyle(Color.dcgRed)
             }
+            .frame(maxWidth: 760)
             .padding(16)
+            .frame(maxWidth: .infinity)
         }
         .background(Color(uiColor: .systemGroupedBackground))
         .refreshable {

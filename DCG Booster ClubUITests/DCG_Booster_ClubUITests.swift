@@ -49,10 +49,10 @@ final class DCG_Booster_ClubUITests: XCTestCase {
         broadcast.lifetime = .keepAlways
         add(broadcast)
         schedule.tap()
-        XCTAssertTrue(app.staticTexts["Upcoming DCGTV Livestreams"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["dcgtv.schedule.Upcoming"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "label == %@ AND selected == true", "Schedule")).firstMatch.exists)
         XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "label == %@", "Shows")).firstMatch.exists)
-        app.tabBars.buttons["Watch"].tap()
+        app.buttons["Watch"].firstMatch.tap()
         XCTAssertTrue(app.descendants(matching: .any)["DCGTV livestreams presented by Charter Bank"].waitForExistence(timeout: 5))
     }
 
@@ -67,6 +67,64 @@ final class DCG_Booster_ClubUITests: XCTestCase {
         screenshot.lifetime = .keepAlways
         add(screenshot)
         XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "label == %@ AND selected == true", "Home")).firstMatch.exists)
+    }
+
+    @MainActor
+    func testScheduleSelectionsAndFavoritePicker() throws {
+        let app = XCUIApplication()
+        app.launch()
+        app.buttons["Schedule"].firstMatch.tap()
+        let upcoming = app.buttons["dcgtv.schedule.Upcoming"]
+        XCTAssertTrue(upcoming.waitForExistence(timeout: 10))
+        XCTAssertTrue(upcoming.isSelected)
+        app.buttons["dcgtv.schedule.Starred"].tap()
+        XCTAssertTrue(app.buttons["dcgtv.schedule.Starred"].isSelected)
+        app.buttons["dcgtv.schedule.All Sports"].tap()
+        XCTAssertTrue(app.buttons["dcgtv.schedule.All Sports"].isSelected)
+        app.buttons["dcgtv.schedule.favorites"].tap()
+        XCTAssertTrue(app.navigationBars["Favorite Sports"].waitForExistence(timeout: 5))
+        app.buttons["Done"].tap()
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Schedule standard size"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+        let details = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Game details, ")).firstMatch
+        for _ in 0..<5 {
+            if details.isHittable { break }
+            app.swipeUp()
+        }
+        XCTAssertTrue(details.isHittable, "Live schedule should expose event details")
+        let events = XCTAttachment(screenshot: app.screenshot())
+        events.name = "Schedule event cards"
+        events.lifetime = .keepAlways
+        add(events)
+        details.tap()
+        XCTAssertTrue(app.navigationBars["Game Details"].waitForExistence(timeout: 5))
+    }
+
+    @MainActor
+    func testScheduleAtAccessibilityTextSize() throws {
+        let app = XCUIApplication()
+        app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
+        app.launch()
+        app.buttons["Schedule"].firstMatch.tap()
+        let upcoming = app.buttons["dcgtv.schedule.Upcoming"]
+        XCTAssertTrue(upcoming.waitForExistence(timeout: 10))
+        for _ in 0..<5 {
+            if app.buttons["dcgtv.schedule.All Sports"].isHittable { break }
+            app.swipeUp()
+        }
+        let all = app.buttons["dcgtv.schedule.All Sports"]
+        XCTAssertTrue(all.isHittable)
+        XCTAssertLessThanOrEqual(all.frame.maxX, app.frame.maxX)
+        all.tap()
+        XCTAssertTrue(all.isSelected)
+        // Let the button's native pressed appearance finish before capturing.
+        RunLoop.current.run(until: Date().addingTimeInterval(0.5))
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Schedule accessibility text size"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
     }
 
     @MainActor
