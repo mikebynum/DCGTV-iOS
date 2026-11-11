@@ -184,12 +184,19 @@ private struct DCGTVHomeScreen: View {
                         .padding(.leading, geometry.safeAreaInsets.leading)
                         .padding(.trailing, geometry.safeAreaInsets.trailing)
                 }
+                .background {
+                    GeometryReader { contentGeometry in
+                        Color.clear.preference(
+                            key: DCGHomeScrollOffsetKey.self,
+                            value: contentGeometry.frame(in: .named("dcgtv.home.scroll")).minY
+                        )
+                    }
+                }
             }
             .ignoresSafeArea(.container, edges: [.top, .horizontal])
-            .onScrollGeometryChange(for: Bool.self) { scroll in
-                scroll.contentOffset.y + scroll.contentInsets.top > 1
-            } action: { _, scrolled in
-                hasScrolled = scrolled
+            .coordinateSpace(name: "dcgtv.home.scroll")
+            .onPreferenceChange(DCGHomeScrollOffsetKey.self) { offset in
+                hasScrolled = offset < -1
             }
             .overlay {
                 if hasScrolled, UIDevice.current.userInterfaceIdiom == .phone {
@@ -356,6 +363,16 @@ private struct DCGTVHomeScreen: View {
         .padding(.bottom, 35)
         .frame(maxWidth: 760)
         .frame(maxWidth: .infinity)
+    }
+}
+
+// Track the content origin with APIs supported before iOS 18, so the
+// status-bar treatment works without raising the app's deployment target.
+private struct DCGHomeScrollOffsetKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
     }
 }
 
