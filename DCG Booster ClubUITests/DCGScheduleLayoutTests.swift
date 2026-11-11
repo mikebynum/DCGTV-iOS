@@ -30,7 +30,7 @@ final class DCGScheduleLayoutTests: XCTestCase {
         XCTAssertTrue(app.buttons["dcgtv.schedule.sportFilter"].exists)
         XCTAssertTrue(app.buttons["dcgtv.schedule.levelFilter"].exists)
         search.tap()
-        search.typeText("unmatched-event-dcgtv-789")
+        search.typeText("unmatched-event-dcgtv-789\n")
         let clear = app.buttons["Clear filters"]
         for _ in 0..<5 {
             if clear.isHittable { break }
