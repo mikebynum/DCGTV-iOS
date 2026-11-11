@@ -141,6 +141,7 @@ private struct DCGTVHomeScreen: View {
 
     @AppStorage("dcgtv.favoriteSports") private var favoriteSportsRaw = ""
     @State private var showingSportPicker = false
+    @State private var hasScrolled = false
 
     private var favoriteSports: Set<String> {
         Set(favoriteSportsRaw.split(separator: "|").map(String.init))
@@ -185,6 +186,25 @@ private struct DCGTVHomeScreen: View {
                 }
             }
             .ignoresSafeArea(.container, edges: [.top, .horizontal])
+            .onScrollGeometryChange(for: Bool.self) { scroll in
+                scroll.contentOffset.y + scroll.contentInsets.top > 1
+            } action: { _, scrolled in
+                hasScrolled = scrolled
+            }
+            .overlay {
+                if hasScrolled, UIDevice.current.userInterfaceIdiom == .phone {
+                    GeometryReader { chrome in
+                        Color(uiColor: .systemGroupedBackground)
+                            .frame(height: geometry.safeAreaInsets.top)
+                            // The scroll view extends through the top safe area.
+                            // Anchor this cover at the window's top, independent
+                            // of the overlay's proposed safe-area origin.
+                            .offset(y: -chrome.frame(in: .global).minY)
+                    }
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+                }
+            }
             .modifier(DCGHomeScrollEdgeStyle())
             .background(Color(uiColor: .systemGroupedBackground))
             .refreshable {
@@ -203,11 +223,11 @@ private struct DCGTVHomeScreen: View {
     }
 
     private var homeContent: some View {
-        VStack(alignment: .leading, spacing: 20) {
+        VStack(alignment: .leading, spacing: 16) {
 
             // Featured Broadcast
 
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 10) {
 
                 Text("Featured Broadcast")
                     .font(.title2.bold())
@@ -241,7 +261,7 @@ private struct DCGTVHomeScreen: View {
             }
 
             // Next three games from Bound, including games not streamed on DCGTV.
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 10) {
 
                 HStack(alignment: .firstTextBaseline) {
                     Text(favoriteSports.isEmpty ? "Upcoming Mustang Games" : "Your Mustang Games")

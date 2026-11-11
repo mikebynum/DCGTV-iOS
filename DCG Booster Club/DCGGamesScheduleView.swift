@@ -1122,7 +1122,7 @@ struct DCGRecentResultsView: View {
     var isCompact = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: isCompact ? 8 : 12) {
             if showHeading {
                 Text("Recent Results")
                     .font(.title2.bold())
@@ -1166,7 +1166,7 @@ private struct DCGResultCard: View {
     }
 
     private var compactContent: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 4) {
             Text("\(result.sport) · \(result.level)")
                 .font(.caption.bold())
                 .foregroundStyle(Color.dcgRed)
@@ -1196,7 +1196,8 @@ private struct DCGResultCard: View {
                 }
             }
         }
-        .padding(12)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color(uiColor: .secondarySystemGroupedBackground))
         .clipShape(RoundedRectangle(cornerRadius: 14))

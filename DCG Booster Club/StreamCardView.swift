@@ -163,7 +163,7 @@ struct StreamCardView: View {
            .aspectRatio(16.0 / 9.0, contentMode: .fit)
            .accessibilityHidden(true)
 
-           VStack(alignment: .leading, spacing: 6) {
+           VStack(alignment: .leading, spacing: 4) {
                if stream.isLive {
                    Label(isStatusCurrent ? "LIVE NOW" : "LIVE AT LAST UPDATE",
                          systemImage: isStatusCurrent ? "dot.radiowaves.left.and.right" : "clock")
@@ -172,10 +172,6 @@ struct StreamCardView: View {
                        .padding(.vertical, 6)
                        .background(isStatusCurrent ? Color.dcgRed : Color(white: 0.3),
                                    in: RoundedRectangle(cornerRadius: 6))
-               } else if stream.status.lowercased() == "upcoming" {
-                   Text("UPCOMING BROADCAST")
-                       .font(.caption.bold())
-                       .foregroundStyle(.white.opacity(0.8))
                }
 
                Text(stream.featuredTitle)
@@ -188,13 +184,15 @@ struct StreamCardView: View {
                        .font(.caption)
                        .foregroundStyle(.white.opacity(0.85))
                }
-               Label(streamActionTitle, systemImage: stream.status.lowercased() == "upcoming" ? "calendar" : "play.fill")
+               Label(stream.status.lowercased() == "upcoming" ? "View Upcoming Stream" : streamActionTitle,
+                     systemImage: stream.status.lowercased() == "upcoming" ? "calendar" : "play.fill")
                    .font(.headline)
                    .frame(maxWidth: .infinity, minHeight: 44)
                    .background(Color.dcgRed, in: RoundedRectangle(cornerRadius: 12))
                    .padding(.top, 2)
            }
-           .padding(12)
+           .padding(.horizontal, 12)
+           .padding(.vertical, 10)
        }
        .foregroundStyle(.white)
        .multilineTextAlignment(.leading)

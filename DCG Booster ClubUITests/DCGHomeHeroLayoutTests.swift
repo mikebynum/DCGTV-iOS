@@ -91,4 +91,34 @@ final class DCGHomeHeroLayoutTests: XCTestCase {
         XCTAssertTrue(homeTab.isSelected)
     }
 
+    @MainActor
+    func testHomeScrollRoundTripPreservesHeroAndSystemControls() throws {
+        let app = XCUIApplication()
+        app.launch()
+        let hero = app.images["dcgtv.home.hero"]
+        XCTAssertTrue(hero.waitForExistence(timeout: 10))
+        let originalFrame = hero.frame
+        let viewport = app.scrollViews.firstMatch
+        viewport.swipeUp()
+        let scrolled = XCTAttachment(screenshot: app.screenshot())
+        scrolled.name = "Home scrolling beneath status bar"
+        scrolled.lifetime = .keepAlways
+        add(scrolled)
+        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label == %@", "Home")).firstMatch.isHittable)
+
+        for _ in 0..<6 {
+            if abs(hero.frame.minY - originalFrame.minY) <= 1 { break }
+            viewport.swipeDown()
+        }
+        XCTAssertEqual(hero.frame.minY, originalFrame.minY, accuracy: 1)
+        XCTAssertEqual(hero.frame.width / hero.frame.height, 2, accuracy: 0.02)
+        if let statusBar = app.statusBars.allElementsBoundByIndex.first {
+            XCTAssertGreaterThanOrEqual(hero.frame.minY, statusBar.frame.maxY - 1)
+        }
+        let returned = XCTAttachment(screenshot: app.screenshot())
+        returned.name = "Home returned to original hero position"
+        returned.lifetime = .keepAlways
+        add(returned)
+    }
+
 }
