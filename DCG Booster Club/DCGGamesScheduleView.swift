@@ -231,7 +231,7 @@ struct DCGGamesScheduleView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
+        VStack(alignment: .leading, spacing: 12) {
             selectionControls
             favoriteChips
             filters
@@ -316,17 +316,18 @@ struct DCGGamesScheduleView: View {
     }
 
     private var filters: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Image(systemName: "magnifyingglass").accessibilityHidden(true)
                 TextField("Search opponent or team", text: $searchText)
+                    .accessibilityIdentifier("dcgtv.schedule.search")
                     .textInputAutocapitalization(.never).autocorrectionDisabled()
                 if !searchText.isEmpty {
                     Button { searchText = "" } label: { Image(systemName: "xmark.circle.fill") }
                         .frame(minWidth: 44, minHeight: 44).accessibilityLabel("Clear search")
                 }
             }
-            .padding(.horizontal, 14).frame(minHeight: 48)
+            .padding(.horizontal, 14).frame(minHeight: 44)
             .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14))
             ViewThatFits(in: .horizontal) {
                 HStack { sportPicker; levelPicker }
@@ -341,13 +342,13 @@ struct DCGGamesScheduleView: View {
         Picker("Sport", selection: $selectedSport) {
             ForEach(sports, id: \.self) { Text($0).tag($0) }
         }
-        .pickerStyle(.menu).frame(minHeight: 44).accessibilityLabel("Filter sport")
+        .pickerStyle(.menu).frame(minHeight: 44).accessibilityLabel("Filter sport").accessibilityIdentifier("dcgtv.schedule.sportFilter")
     }
     private var levelPicker: some View {
         Picker("Level", selection: $selectedLevel) {
             ForEach(levels, id: \.self) { Text($0).tag($0) }
         }
-        .pickerStyle(.menu).frame(minHeight: 44).accessibilityLabel("Filter level")
+        .pickerStyle(.menu).frame(minHeight: 44).accessibilityLabel("Filter level").accessibilityIdentifier("dcgtv.schedule.levelFilter")
     }
 
     @ViewBuilder private var schedule: some View {
@@ -360,10 +361,17 @@ struct DCGGamesScheduleView: View {
                 Button("Try Again") { Task { await service.refreshKeepingRequestAlive() } }.frame(minHeight: 44)
             }
         } else {
-            Text(selection == .allSports ? "All scheduled events" : selection == .starred ? "Starred sports • Today & ahead" : "Today & ahead")
-                .font(.title2.bold()).accessibilityAddTraits(.isHeader)
-            Text("\(filteredGames.count) \(filteredGames.count == 1 ? "event" : "events")")
-                .font(.subheadline).foregroundStyle(.secondary)
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .firstTextBaseline, spacing: 12) {
+                    scheduleHeading.fixedSize()
+                    Spacer(minLength: 0)
+                    eventCount.fixedSize()
+                }
+                VStack(alignment: .leading, spacing: 4) {
+                    scheduleHeading
+                    eventCount
+                }
+            }
             if filteredGames.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
                     Text(selection == .starred && favorites.isEmpty ? "Choose the sports you follow" : "No games match this selection")
@@ -373,11 +381,11 @@ struct DCGGamesScheduleView: View {
                 }.padding(20)
             }
             let groups = groupedGames
-            LazyVStack(alignment: .leading, spacing: 16) {
+            LazyVStack(alignment: .leading, spacing: 10) {
                 ForEach(Array(groups.enumerated()), id: \.element.id) { index, group in
                     if startsWeek(at: index, in: groups), let week = Calendar.current.dateInterval(of: .weekOfYear, for: group.date) {
                         Text("Week of \(week.start.formatted(.dateTime.month(.abbreviated).day().year()))")
-                            .font(.caption.bold()).foregroundStyle(.secondary).padding(.top, 8)
+                            .font(.caption.bold()).foregroundStyle(.secondary).padding(.top, 4)
                             .accessibilityAddTraits(.isHeader)
                     }
                     Text(group.date, format: .dateTime.weekday(.wide).month(.abbreviated).day())
@@ -392,27 +400,31 @@ struct DCGGamesScheduleView: View {
             }
         }
     }
+    private var scheduleHeading: some View {
+        Text(selection == .allSports ? "All scheduled events" : selection == .starred ? "Starred sports • Today & ahead" : "Today & ahead")
+            .font(.headline)
+            .accessibilityAddTraits(.isHeader)
+    }
+
+    private var eventCount: some View {
+        Text("\(filteredGames.count) \(filteredGames.count == 1 ? "event" : "events")")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+    }
+
 }
 
 struct DCGScheduleHeader: View {
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Label("DCGTV • MUSTANG ATHLETICS", systemImage: "calendar")
-                .font(.caption.bold())
-            Text("Game day starts here.").font(.largeTitle.bold()).accessibilityAddTraits(.isHeader)
-                .fixedSize(horizontal: false, vertical: true)
-            Text("Follow your sports. Find your next Mustang event.")
-                .font(.subheadline)
-            Rectangle().fill(Color.dcgRed).frame(width: 56, height: 4).accessibilityHidden(true)
-        }
-        .foregroundStyle(.white)
-        .padding(24)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.black.gradient)
-        .clipShape(RoundedRectangle(cornerRadius: 24))
-        .accessibilityIdentifier("dcgtv.schedule.header")
+        Image("DCGTVScheduleHeader")
+            .renderingMode(.original)
+            .resizable()
+            .scaledToFit()
+            .frame(maxWidth: .infinity)
+            .accessibilityLabel("DCGTV. Schedule. Games, Results & More. Presented by Charter Bank.")
+            .accessibilityAddTraits(.isHeader)
+            .accessibilityIdentifier("dcgtv.schedule.header")
     }
-
 }
 
 // MARK: - Individual Game Card
@@ -425,52 +437,40 @@ struct DCGGameCard: View {
 
     var body: some View {
 
-        VStack(alignment: .leading, spacing: 12) {
-
-            ViewThatFits(in: .horizontal) {
-                HStack(alignment: .top) {
-                    Text(game.sport).font(.subheadline.bold()).foregroundStyle(Color.dcgRed)
-                    Spacer()
-                    Text(game.level).font(.caption).foregroundStyle(.secondary)
-                }
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(game.sport).font(.subheadline.bold()).foregroundStyle(Color.dcgRed)
-                    Text(game.level).font(.caption).foregroundStyle(.secondary)
-                }
-            }
-
+        VStack(alignment: .leading, spacing: 8) {
             Button(action: onShowDetails) {
-                Text(game.displayTitle)
-                    .font(.headline)
-                    .foregroundStyle(.primary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("\(game.sport) · \(game.level)")
+                        .font(.caption.bold())
+                        .foregroundStyle(Color.dcgRed)
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text(game.displayTitle)
+                            .font(.subheadline.bold())
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        Image(systemName: "chevron.right")
+                            .font(.caption.bold())
+                            .foregroundStyle(.secondary)
+                    }
+                    ViewThatFits(in: .horizontal) {
+                        HStack(alignment: .firstTextBaseline, spacing: 12) {
+                            time.fixedSize()
+                            venue.fixedSize()
+                        }
+                        VStack(alignment: .leading, spacing: 4) {
+                            time
+                            venue
+                        }
+                    }
+                }
+                .foregroundStyle(.primary)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-
-            if let date = game.startDate {
-
-                Label {
-                    Text(date, format: .dateTime.hour().minute())
-                } icon: {
-                    Image(systemName: "clock")
-                }
-                .font(.title3.bold())
-                .foregroundStyle(.primary)
-            } else {
-                Label("Time to be confirmed", systemImage: "clock")
-                    .font(.subheadline).foregroundStyle(.secondary)
-            }
-
-            if let compactLocation = game.compactLocation {
-
-                Label(
-                    compactLocation,
-                    systemImage: "mappin.and.ellipse"
-                )
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            }
+            .accessibilityLabel(detailsAccessibilityLabel)
+            .accessibilityHint("Opens game details")
 
             if let status = game.status,
                status.uppercased() != "CONFIRMED" {
@@ -490,10 +490,10 @@ struct DCGGameCard: View {
                         "Watch on DCGTV",
                         systemImage: "play.rectangle.fill"
                     )
-                    .font(.subheadline.bold())
+                    .font(.caption.bold())
                     .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(12)
+                    .padding(.horizontal, 10)
+                    .frame(maxWidth: .infinity, minHeight: 44)
                     .background(Color.dcgRed)
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                 }
@@ -507,10 +507,10 @@ struct DCGGameCard: View {
                         "Watch via \(external.provider)",
                         systemImage: "play.rectangle.on.rectangle"
                     )
-                    .font(.subheadline.bold())
+                    .font(.caption.bold())
                     .foregroundStyle(Color.dcgRed)
-                    .frame(maxWidth: .infinity)
-                    .padding(12)
+                    .padding(.horizontal, 10)
+                    .frame(maxWidth: .infinity, minHeight: 44)
                     .background(Color.dcgRed.opacity(0.08))
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                     .overlay {
@@ -528,21 +528,8 @@ struct DCGGameCard: View {
                 }
             }
 
-            Button(action: onShowDetails) {
-                HStack {
-                    Text("Game Details")
-                    Spacer()
-                    Image(systemName: "chevron.right")
-                }
-                .font(.subheadline.bold())
-                .foregroundStyle(Color.dcgRed)
-                .frame(minHeight: 44)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Game details, \(game.displayTitle)")
         }
-        .padding(18)
+        .padding(12)
         .frame(
             maxWidth: .infinity,
             alignment: .leading
@@ -554,6 +541,42 @@ struct DCGGameCard: View {
             RoundedRectangle(cornerRadius: 16)
         )
     }
+    @ViewBuilder private var time: some View {
+        if let date = game.startDate {
+            Label {
+                Text(date, format: .dateTime.hour().minute())
+            } icon: {
+                Image(systemName: "clock")
+            }
+            .font(.caption.bold())
+        } else {
+            Label("Time to be confirmed", systemImage: "clock")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    @ViewBuilder private var venue: some View {
+        if let location = game.compactLocation {
+            Label(location, systemImage: "mappin.and.ellipse")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var detailsAccessibilityLabel: Text {
+        var label = Text("Game details, \(game.displayTitle). \(game.sport), \(game.level). ")
+        if let date = game.startDate {
+            label = label + Text(date, format: .dateTime.month().day().year().hour().minute())
+        } else {
+            label = label + Text("Time to be confirmed")
+        }
+        if let location = game.compactLocation {
+            label = label + Text(". \(location)")
+        }
+        return label
+    }
+
 }
 
 // MARK: - Native Game Details
