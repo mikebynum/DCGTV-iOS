@@ -618,34 +618,24 @@ private struct DCGHomeGameCard: View {
 
 private struct DCGWatchHeader: View {
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 12) {
-                Image("DCGTVLogo")
-                    .renderingMode(.original)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 96, height: 54)
-                    .accessibilityLabel("DCGTV")
-                    .accessibilityIdentifier("dcgtv.watch.logo")
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Watch")
-                        .font(.title2.bold())
-                        .accessibilityAddTraits(.isHeader)
-                    Text("Live & on demand")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-
-            DCGLivestreamSponsorBanner()
+        Link(destination: URL(string: "https://www.charterbanker.com/")!) {
+            Image("DCGTVWatchHeader")
+                .renderingMode(.original)
+                .resizable()
+                .scaledToFit()
+                .frame(maxWidth: .infinity)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .buttonStyle(.plain)
+        .accessibilityLabel("DCGTV. Watch Live & On-Demand. Presented by Charter Bank.")
+        .accessibilityHint("Opens the Charter Bank website")
+        .accessibilityIdentifier("dcgtv.watch.header")
+        .accessibilityAddTraits(.isHeader)
     }
 }
 
 private struct DCGTVWatchScreen: View {
+
+   @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
    @ObservedObject var streams: StreamService
    @ObservedObject var games: DCGGamesService
@@ -676,7 +666,7 @@ private struct DCGTVWatchScreen: View {
 
        ScrollView {
 
-           VStack(alignment: .leading, spacing: 22) {
+           VStack(alignment: .leading, spacing: 16) {
 
                // MARK: Header
 
@@ -686,7 +676,7 @@ private struct DCGTVWatchScreen: View {
 
                // MARK: Live Broadcasts
 
-               VStack(alignment: .leading, spacing: 14) {
+               VStack(alignment: .leading, spacing: 10) {
 
                    HStack {
 
@@ -724,7 +714,7 @@ private struct DCGTVWatchScreen: View {
                            maxWidth: .infinity,
                            alignment: .leading
                        )
-                       .padding(20)
+                       .padding(14)
                        .background(
                            Color(uiColor: .secondarySystemGroupedBackground)
                        )
@@ -760,7 +750,7 @@ private struct DCGTVWatchScreen: View {
 
                // MARK: Recent Broadcasts
 
-               VStack(alignment: .leading, spacing: 14) {
+               VStack(alignment: .leading, spacing: 10) {
 
                    HStack {
 
@@ -795,7 +785,7 @@ private struct DCGTVWatchScreen: View {
                            maxWidth: .infinity,
                            alignment: .leading
                        )
-                       .padding(20)
+                       .padding(14)
                        .background(
                            Color(uiColor: .secondarySystemGroupedBackground)
                        )
@@ -806,7 +796,7 @@ private struct DCGTVWatchScreen: View {
                    } else {
 
                        ForEach(recentBroadcasts) { stream in
-                           StreamCardView(stream: stream, isStatusCurrent: streams.isStatusCurrent)
+                           StreamCardView(stream: stream, isStatusCurrent: streams.isStatusCurrent, isDense: true)
                        }
                    }
                }
@@ -819,17 +809,22 @@ private struct DCGTVWatchScreen: View {
                    )!
                ) {
 
-                   HStack(spacing: 12) {
+                   let layout = dynamicTypeSize.isAccessibilitySize
+                       ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+                       : AnyLayout(HStackLayout(spacing: 12))
+                   layout {
 
                        Image(systemName: "play.rectangle.fill")
                            .font(.title3)
 
                        Text("Browse All Broadcasts")
                            .font(.subheadline.bold())
+                           .fixedSize(horizontal: false, vertical: true)
+                           .frame(maxWidth: .infinity, alignment: .leading)
 
-                       Spacer()
-
-                       Image(systemName: "arrow.up.right")
+                       if !dynamicTypeSize.isAccessibilitySize {
+                           Image(systemName: "arrow.up.right")
+                       }
                    }
                    .padding(16)
                    .foregroundStyle(.white)

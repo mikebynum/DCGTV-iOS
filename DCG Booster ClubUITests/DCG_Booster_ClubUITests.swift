@@ -61,7 +61,7 @@ final class DCG_Booster_ClubUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "label == %@ AND selected == true", "Schedule")).firstMatch.exists)
         XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "label == %@", "Shows")).firstMatch.exists)
         app.buttons["Watch"].firstMatch.tap()
-        XCTAssertTrue(app.descendants(matching: .any)["DCGTV livestreams presented by Charter Bank"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["dcgtv.watch.header"].waitForExistence(timeout: 5))
     }
 
     @MainActor

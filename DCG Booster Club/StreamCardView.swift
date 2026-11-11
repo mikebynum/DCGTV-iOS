@@ -5,6 +5,9 @@ struct StreamCardView: View {
    let stream: DCGStream
    let isStatusCurrent: Bool
    var isFeatured = false
+   var isDense = false
+
+   @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     @State private var showVideo = false
 
@@ -37,6 +40,8 @@ struct StreamCardView: View {
 
            if isFeatured {
                featuredContent
+           } else if isDense {
+               denseContent
            } else {
                compactContent
            }
@@ -49,6 +54,66 @@ struct StreamCardView: View {
                    .ignoresSafeArea()
            }
        }
+   }
+
+   // Watch replays share the existing button, URL validation, and video sheet.
+   private var denseContent: some View {
+       let layout = dynamicTypeSize.isAccessibilitySize
+           ? AnyLayout(VStackLayout(alignment: .leading, spacing: 6))
+           : AnyLayout(HStackLayout(alignment: .center, spacing: 10))
+       return layout {
+           AsyncImage(url: URL(string: stream.thumbnail)) { phase in
+               if case .success(let image) = phase {
+                   image.resizable().scaledToFill()
+               } else {
+                   streamThumbnailPlaceholder
+               }
+           }
+           .frame(width: dynamicTypeSize.isAccessibilitySize ? 160 : 104,
+                  height: dynamicTypeSize.isAccessibilitySize ? 90 : 58.5)
+           .clipped()
+           .clipShape(RoundedRectangle(cornerRadius: 8))
+           .accessibilityHidden(true)
+
+           VStack(alignment: .leading, spacing: 3) {
+               Text(stream.title)
+                   .font(.subheadline.bold())
+                   .foregroundStyle(.primary)
+                   .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
+                   .fixedSize(horizontal: false, vertical: true)
+               if let date = stream.startDate {
+                   Text(date, format: .dateTime.month(.abbreviated).day().year().hour().minute())
+                       .font(.caption)
+                       .foregroundStyle(.secondary)
+                       .fixedSize(horizontal: false, vertical: true)
+               }
+           }
+           .frame(maxWidth: .infinity, alignment: .leading)
+
+           Image(systemName: "play.fill")
+               .font(.subheadline.bold())
+               .foregroundStyle(Color.dcgRed)
+               .padding(8)
+               .background(Color.dcgRed.opacity(0.1), in: Circle())
+               .accessibilityHidden(true)
+       }
+       .multilineTextAlignment(.leading)
+       .padding(.horizontal, 10)
+       .padding(.vertical, 8)
+       .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+       .background(Color(uiColor: .secondarySystemGroupedBackground))
+       .clipShape(RoundedRectangle(cornerRadius: 12))
+       .accessibilityElement(children: .ignore)
+       .accessibilityLabel(replayAccessibilityLabel)
+   }
+
+   private var replayAccessibilityLabel: Text {
+       if let date = stream.startDate {
+           return Text(stream.title) + Text(", ")
+               + Text(date, format: .dateTime.month().day().year().hour().minute())
+               + Text(", ") + Text(streamActionTitle)
+       }
+       return Text(stream.title) + Text(", ") + Text(streamActionTitle)
    }
 
    private var compactContent: some View {
