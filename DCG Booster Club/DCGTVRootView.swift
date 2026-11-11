@@ -183,214 +183,25 @@ private struct DCGTVHomeScreen: View {
 
     var body: some View {
 
-        ScrollView {
+        GeometryReader { geometry in
+            ScrollView {
+                VStack(spacing: 0) {
+                    DCGHomeBrandHeader(topInset: geometry.safeAreaInsets.top)
 
-            VStack(alignment: .leading, spacing: 24) {
-
-                DCGHomeBrandHeader()
-
-                // Featured Broadcast
-
-                VStack(alignment: .leading, spacing: 12) {
-
-                    Text("Featured Broadcast")
-                        .font(.title2.bold())
-
-                    if let featuredStream {
-
-                        StreamCardView(stream: featuredStream, isStatusCurrent: streams.isStatusCurrent, isFeatured: true)
-
-                    } else if streams.isStatusCurrent {
-
-                        emptyMessage(
-                            "No broadcasts scheduled",
-                            subtitle: "Check back for the next DCGTV event."
-                        )
-                    }
-
-                    DCGBroadcastStatusView(service: streams)
-
-                    Button {
-                        selectedTab = .schedule
-                    } label: {
-
-                        Label(
-                            "View Broadcast Schedule",
-                            systemImage: "calendar"
-                        )
-                        .font(.subheadline.bold())
-                    }
-                    .tint(Color.dcgRed)
-                    .frame(minHeight: 44)
-                }
-
-                // Next three games from Bound, including games not streamed on DCGTV.
-                VStack(alignment: .leading, spacing: 12) {
-
-                    HStack(alignment: .firstTextBaseline) {
-                        Text(favoriteSports.isEmpty ? "Upcoming Mustang Games" : "Your Mustang Games")
-                            .font(.title2.bold())
-                        Spacer()
-                        Button("See All") {
-                            selectedTab = .schedule
-                        }
-                        .font(.subheadline.bold())
-                        .tint(Color.dcgRed)
-                    }
-
-                    HStack {
-                        Button {
-                            showingSportPicker = true
-                        } label: {
-                            Label(
-                                favoriteSports.isEmpty ? "Choose Favorite Sports" : "Edit Favorite Sports",
-                                systemImage: "star"
-                            )
-                            .font(.subheadline.bold())
-                        }
-                        .tint(Color.dcgRed)
-
-                        Spacer()
-                        if !favoriteSports.isEmpty {
-                            Text("\(favoriteSports.count) selected")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-
-                    if games.isLoading && games.games.isEmpty {
-                        ProgressView("Loading games...")
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                    } else if games.games.isEmpty {
-                        emptyMessage(
-                            "No upcoming games found",
-                            subtitle: games.errorMessage ?? "Check the full schedule for updates."
-                        )
-                    } else if prioritizedGames.isEmpty {
-                        emptyMessage(
-                            "No upcoming games in your favorite sports",
-                            subtitle: "Check the full schedule, or edit your favorite sports above."
-                        )
-                    } else {
-                        ForEach(prioritizedGames) { game in
-                            DCGHomeGameCard(
-                                game: game,
-                                stream: DCGGameStreamMatcher.matchedStream(
-                                    for: game,
-                                    in: games.games,
-                                    broadcasts: streams.streams
-                                ),
-                                onShowDetails: { selectedGame = game }
-                            )
-                        }
-                    }
-
-                    // The matching game already includes its stream link.
-                    // Keep Home compact and send fans to Watch for the full list.
-                    if nextAwayGame != nil {
-                        Button {
-                            selectedTab = .watch
-                        } label: {
-                            HStack(spacing: 8) {
-                                Image(systemName: "play.rectangle.on.rectangle")
-                                Text("See All Away Streams")
-                                Spacer()
-                                Image(systemName: "chevron.right")
-                                    .font(.caption)
-                            }
-                            .font(.subheadline.bold())
-                            .foregroundStyle(Color.dcgRed)
-                            .padding(.vertical, 6)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-
-                // Final scores verified in WordPress.
-                DCGRecentResultsView(service: results, limit: 3)
-
-                // Watch DCGTV
-
-                VStack(alignment: .leading, spacing: 12) {
-
-                    Text("Watch DCGTV")
-                        .font(.title2.bold())
-
-                    Button {
-                        selectedTab = .watch
-                    } label: {
-
-                        Label(
-                            "Live & Recent Broadcasts",
-                            systemImage: "play.rectangle.fill"
-                        )
-                        .frame(maxWidth: .infinity)
-                        .padding(16)
-                        .foregroundStyle(.white)
-                        .background(Color.dcgRed)
-                        .clipShape(
-                            RoundedRectangle(cornerRadius: 14)
-                        )
-                    }
-
-                    Button {
-                        selectedTab = .shows
-                    } label: {
-                        Label(
-                            "Explore DCGTV Shows",
-                            systemImage: "film.stack"
-                        )
-                        .font(.headline)
-                        .frame(maxWidth: .infinity)
-                        .padding(16)
-                        .foregroundStyle(Color.dcgRed)
-                        .background(Color(uiColor: .secondarySystemGroupedBackground))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 14)
-                                .strokeBorder(Color.dcgRed.opacity(0.45), lineWidth: 1)
-                        }
-                        .clipShape(
-                            RoundedRectangle(cornerRadius: 14)
-                        )
-                    }
-                    .buttonStyle(.plain)
-                }
-
-                // Booster Club
-
-                VStack(alignment: .leading, spacing: 10) {
-
-                    Text("Support DCGTV")
-                        .font(.title2.bold())
-
-                    Text(
-                        "DCGTV is supported by the DCG Booster Club."
-                    )
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-
-                    Link(
-                        "Visit the DCG Booster Club",
-                        destination: URL(
-                            string: "https://dcgboosterclub.com/"
-                        )!
-                    )
-                    .font(.subheadline.bold())
-                    .foregroundStyle(Color.dcgRed)
+                    homeContent
+                        .padding(.leading, geometry.safeAreaInsets.leading)
+                        .padding(.trailing, geometry.safeAreaInsets.trailing)
                 }
             }
-            .padding(16)
-            .padding(.bottom, 35)
-            .frame(maxWidth: 760)
-            .frame(maxWidth: .infinity)
-        }
-        .background(Color(uiColor: .systemGroupedBackground))
-        .refreshable {
-            async let streamsRefresh: Void = streams.refreshKeepingRequestAlive(force: true)
-            async let gamesRefresh: Void = games.refreshKeepingRequestAlive()
-            async let resultsRefresh: Void = results.refreshKeepingRequestAlive()
-            _ = await (streamsRefresh, gamesRefresh, resultsRefresh)
+            .ignoresSafeArea(.container, edges: [.top, .horizontal])
+            .modifier(DCGHomeScrollEdgeStyle())
+            .background(Color(uiColor: .systemGroupedBackground))
+            .refreshable {
+                async let streamsRefresh: Void = streams.refreshKeepingRequestAlive(force: true)
+                async let gamesRefresh: Void = games.refreshKeepingRequestAlive()
+                async let resultsRefresh: Void = results.refreshKeepingRequestAlive()
+                _ = await (streamsRefresh, gamesRefresh, resultsRefresh)
+            }
         }
         .sheet(isPresented: $showingSportPicker) {
             DCGFavoriteSportsPicker(
@@ -399,20 +210,258 @@ private struct DCGTVHomeScreen: View {
             )
         }
     }
+
+    private var homeContent: some View {
+        VStack(alignment: .leading, spacing: 24) {
+
+            // Featured Broadcast
+
+            VStack(alignment: .leading, spacing: 12) {
+
+                Text("Featured Broadcast")
+                    .font(.title2.bold())
+
+                if let featuredStream {
+
+                    StreamCardView(stream: featuredStream, isStatusCurrent: streams.isStatusCurrent, isFeatured: true)
+
+                } else if streams.isStatusCurrent {
+
+                    emptyMessage(
+                        "No broadcasts scheduled",
+                        subtitle: "Check back for the next DCGTV event."
+                    )
+                }
+
+                DCGBroadcastStatusView(service: streams)
+
+                Button {
+                    selectedTab = .schedule
+                } label: {
+
+                    Label(
+                        "View Broadcast Schedule",
+                        systemImage: "calendar"
+                    )
+                    .font(.subheadline.bold())
+                }
+                .tint(Color.dcgRed)
+                .frame(minHeight: 44)
+            }
+
+            // Next three games from Bound, including games not streamed on DCGTV.
+            VStack(alignment: .leading, spacing: 12) {
+
+                HStack(alignment: .firstTextBaseline) {
+                    Text(favoriteSports.isEmpty ? "Upcoming Mustang Games" : "Your Mustang Games")
+                        .font(.title2.bold())
+                    Spacer()
+                    Button("See All") {
+                        selectedTab = .schedule
+                    }
+                    .font(.subheadline.bold())
+                    .tint(Color.dcgRed)
+                }
+
+                HStack {
+                    Button {
+                        showingSportPicker = true
+                    } label: {
+                        Label(
+                            favoriteSports.isEmpty ? "Choose Favorite Sports" : "Edit Favorite Sports",
+                            systemImage: "star"
+                        )
+                        .font(.subheadline.bold())
+                    }
+                    .tint(Color.dcgRed)
+
+                    Spacer()
+                    if !favoriteSports.isEmpty {
+                        Text("\(favoriteSports.count) selected")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                if games.isLoading && games.games.isEmpty {
+                    ProgressView("Loading games...")
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                } else if games.games.isEmpty {
+                    emptyMessage(
+                        "No upcoming games found",
+                        subtitle: games.errorMessage ?? "Check the full schedule for updates."
+                    )
+                } else if prioritizedGames.isEmpty {
+                    emptyMessage(
+                        "No upcoming games in your favorite sports",
+                        subtitle: "Check the full schedule, or edit your favorite sports above."
+                    )
+                } else {
+                    ForEach(prioritizedGames) { game in
+                        DCGHomeGameCard(
+                            game: game,
+                            stream: DCGGameStreamMatcher.matchedStream(
+                                for: game,
+                                in: games.games,
+                                broadcasts: streams.streams
+                            ),
+                            onShowDetails: { selectedGame = game }
+                        )
+                    }
+                }
+
+                // The matching game already includes its stream link.
+                // Keep Home compact and send fans to Watch for the full list.
+                if nextAwayGame != nil {
+                    Button {
+                        selectedTab = .watch
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "play.rectangle.on.rectangle")
+                            Text("See All Away Streams")
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.caption)
+                        }
+                        .font(.subheadline.bold())
+                        .foregroundStyle(Color.dcgRed)
+                        .padding(.vertical, 6)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+
+            // Final scores verified in WordPress.
+            DCGRecentResultsView(service: results, limit: 3)
+
+            // Watch DCGTV
+
+            VStack(alignment: .leading, spacing: 12) {
+
+                Text("Watch DCGTV")
+                    .font(.title2.bold())
+
+                Button {
+                    selectedTab = .watch
+                } label: {
+
+                    Label(
+                        "Live & Recent Broadcasts",
+                        systemImage: "play.rectangle.fill"
+                    )
+                    .frame(maxWidth: .infinity)
+                    .padding(16)
+                    .foregroundStyle(.white)
+                    .background(Color.dcgRed)
+                    .clipShape(
+                        RoundedRectangle(cornerRadius: 14)
+                    )
+                }
+
+                Button {
+                    selectedTab = .shows
+                } label: {
+                    Label(
+                        "Explore DCGTV Shows",
+                        systemImage: "film.stack"
+                    )
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
+                    .padding(16)
+                    .foregroundStyle(Color.dcgRed)
+                    .background(Color(uiColor: .secondarySystemGroupedBackground))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 14)
+                            .strokeBorder(Color.dcgRed.opacity(0.45), lineWidth: 1)
+                    }
+                    .clipShape(
+                        RoundedRectangle(cornerRadius: 14)
+                    )
+                }
+                .buttonStyle(.plain)
+            }
+
+            // Booster Club
+
+            VStack(alignment: .leading, spacing: 10) {
+
+                Text("Support DCGTV")
+                    .font(.title2.bold())
+
+                Text(
+                    "DCGTV is supported by the DCG Booster Club."
+                )
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+
+                Link(
+                    "Visit the DCG Booster Club",
+                    destination: URL(
+                        string: "https://dcgboosterclub.com/"
+                    )!
+                )
+                .font(.subheadline.bold())
+                .foregroundStyle(Color.dcgRed)
+            }
+        }
+        .padding(16)
+        .padding(.bottom, 35)
+        .frame(maxWidth: 760)
+        .frame(maxWidth: .infinity)
+    }
 }
 
-// The approved banner includes both brands. Let its intrinsic aspect ratio set
-// the height on iPhone and iPad; fixed heights or clipping would cut off artwork.
+// iOS 26 adds a blurred scroll-edge treatment that would obscure the artwork.
+private struct DCGHomeScrollEdgeStyle: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content.scrollEdgeEffectHidden(true, for: .top)
+        } else {
+            content
+        }
+    }
+}
+
+// Keep all 2:1 artwork below system chrome. Only the decorative top 8% is
+// mirrored/extended behind the status bar; its lower edge meets the original
+// top row continuously. The original image remains intact, without
+// aspect-fill cropping or an overlay.
 private struct DCGHomeBrandHeader: View {
+    let topInset: CGFloat
+
     var body: some View {
-        Image("DCGTVHomeHero")
-            .renderingMode(.original)
-            .resizable()
-            .scaledToFit()
-            .frame(maxWidth: .infinity)
-            .accessibilityLabel("DCGTV.com. Mustang Athletics. Live and On Demand. Presented by Charter Bank.")
-            .accessibilityIdentifier("dcgtv.home.hero")
-            .accessibilityAddTraits(.isHeader)
+        // A one-point overlap prevents a fractional-pixel seam at the join.
+        VStack(spacing: -1) {
+            if topInset > 0 {
+                GeometryReader { geometry in
+                    Image("DCGTVHomeHero")
+                        .renderingMode(.original)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: geometry.size.width, height: geometry.size.width * 0.5)
+                        .scaleEffect(x: 1, y: -1, anchor: .top)
+                        .offset(y: geometry.size.width * 0.5 * 0.08)
+                        .scaleEffect(
+                            x: 1,
+                            y: topInset / (geometry.size.width * 0.5 * 0.08),
+                            anchor: .top
+                        )
+                }
+                .frame(height: topInset)
+                .clipped()
+                .accessibilityHidden(true)
+            }
+
+            Image("DCGTVHomeHero")
+                .renderingMode(.original)
+                .resizable()
+                .scaledToFit()
+                .frame(maxWidth: .infinity)
+                .accessibilityLabel("DCGTV.com. Mustang Athletics. Live and On Demand. Presented by Charter Bank.")
+                .accessibilityIdentifier("dcgtv.home.hero")
+                .accessibilityAddTraits(.isHeader)
+        }
     }
 }
 
