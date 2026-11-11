@@ -1,22 +1,41 @@
 import Foundation
 
-// Shared by every model whose API dates may or may not include fractional
-// seconds, so each only needs to call one place instead of repeating the
-// fallback logic.
+// The app's default MainActor isolation serializes access to the formatters.
+// Reuse both formatter configurations and parsed values: schedule sorting,
+// filtering and broadcast matching ask for the same dates many times per render.
 enum DCGDateParsing {
-    static func flexibleISO8601(_ string: String) -> Date? {
+    private final class ParsedDate: NSObject {
+        let value: Date?
+        init(_ value: Date?) { self.value = value }
+    }
+
+    private static let cache: NSCache<NSString, ParsedDate> = {
+        let cache = NSCache<NSString, ParsedDate>()
+        cache.countLimit = 2_048
+        return cache
+    }()
+
+    private static let fractionalFormatter: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
 
-        formatter.formatOptions = [
-            .withInternetDateTime,
-            .withFractionalSeconds
-        ]
+    private static let standardFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter
+    }()
 
-        if let date = formatter.date(from: string) {
-            return date
+    static func flexibleISO8601(_ string: String) -> Date? {
+        let key = string as NSString
+        if let cached = cache.object(forKey: key) {
+            return cached.value
         }
 
-        formatter.formatOptions = [.withInternetDateTime]
-        return formatter.date(from: string)
+        let date = fractionalFormatter.date(from: string) ?? standardFormatter.date(from: string)
+        // Cache invalid dates too, so undated events remain inexpensive to render.
+        cache.setObject(ParsedDate(date), forKey: key)
+        return date
     }
 }

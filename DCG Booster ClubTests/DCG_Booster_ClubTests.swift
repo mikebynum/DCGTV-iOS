@@ -360,3 +360,23 @@ struct DCGFeaturedTitleTests {
         #expect(stream("11-17-26").featuredTitle == "11-17-26")
     }
 }
+
+struct DCGDateParsingTests {
+    @Test func acceptsOffsetsAndFractionalSecondsOnRepeatedReads() throws {
+        let utc = try #require(DCGDateParsing.flexibleISO8601("2026-11-18T00:30:00Z"))
+        for _ in 0..<3 {
+            #expect(DCGDateParsing.flexibleISO8601("2026-11-17T18:30:00-06:00") == utc)
+            let fractional = try #require(DCGDateParsing.flexibleISO8601("2026-11-18T00:30:00.125Z"))
+            #expect(abs(fractional.timeIntervalSince(utc) - 0.125) < 0.001)
+            #expect(DCGDateParsing.flexibleISO8601("2026-11-18T00:30:00Z") == utc)
+        }
+    }
+
+    @Test func invalidDatesStayUndatedWithoutAffectingValidDates() {
+        for _ in 0..<3 {
+            #expect(DCGDateParsing.flexibleISO8601("") == nil)
+            #expect(DCGDateParsing.flexibleISO8601("date to be confirmed") == nil)
+            #expect(DCGDateParsing.flexibleISO8601("2026-11-18T00:30:00Z") != nil)
+        }
+    }
+}

@@ -212,8 +212,8 @@ struct DCGGamesScheduleView: View {
         DCGScheduleFilter.games(service.games, selection: selection, favorites: favorites,
                                 sport: selectedSport, level: selectedLevel, query: searchText)
     }
-    private var groupedGames: [GameDay] {
-        let valid = filteredGames.compactMap { game -> (Date, DCGGame)? in
+    private func groupedGames(_ games: [DCGGame]) -> [GameDay] {
+        let valid = games.compactMap { game -> (Date, DCGGame)? in
             guard let date = game.startDate else { return nil }
             return (Calendar.current.startOfDay(for: date), game)
         }
@@ -361,18 +361,20 @@ struct DCGGamesScheduleView: View {
                 Button("Try Again") { Task { await service.refreshKeepingRequestAlive() } }.frame(minHeight: 44)
             }
         } else {
+            // Compute the selection once for the count, groups and undated rows.
+            let games = filteredGames
             ViewThatFits(in: .horizontal) {
                 HStack(alignment: .firstTextBaseline, spacing: 12) {
                     scheduleHeading.fixedSize()
                     Spacer(minLength: 0)
-                    eventCount.fixedSize()
+                    eventCount(games.count).fixedSize()
                 }
                 VStack(alignment: .leading, spacing: 4) {
                     scheduleHeading
-                    eventCount
+                    eventCount(games.count)
                 }
             }
-            if filteredGames.isEmpty {
+            if games.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
                     Text(selection == .starred && favorites.isEmpty ? "Choose the sports you follow" : "No games match this selection")
                         .font(.headline)
@@ -380,7 +382,7 @@ struct DCGGamesScheduleView: View {
                         .font(.subheadline).foregroundStyle(.secondary)
                 }.padding(20)
             }
-            let groups = groupedGames
+            let groups = groupedGames(games)
             LazyVStack(alignment: .leading, spacing: 10) {
                 ForEach(Array(groups.enumerated()), id: \.element.id) { index, group in
                     if startsWeek(at: index, in: groups), let week = Calendar.current.dateInterval(of: .weekOfYear, for: group.date) {
@@ -392,7 +394,7 @@ struct DCGGamesScheduleView: View {
                         .font(.headline).accessibilityAddTraits(.isHeader)
                     ForEach(group.games) { card($0) }
                 }
-                let undated = filteredGames.filter { $0.startDate == nil }
+                let undated = games.filter { $0.startDate == nil }
                 if !undated.isEmpty {
                     Text("Date to be confirmed").font(.headline).accessibilityAddTraits(.isHeader)
                     ForEach(undated) { card($0) }
@@ -406,8 +408,8 @@ struct DCGGamesScheduleView: View {
             .accessibilityAddTraits(.isHeader)
     }
 
-    private var eventCount: some View {
-        Text("\(filteredGames.count) \(filteredGames.count == 1 ? "event" : "events")")
+    private func eventCount(_ count: Int) -> some View {
+        Text("\(count) \(count == 1 ? "event" : "events")")
             .font(.caption)
             .foregroundStyle(.secondary)
     }
