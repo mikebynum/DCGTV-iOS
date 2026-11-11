@@ -1,6 +1,6 @@
 # DCGTV hero/header review
 
-The Home header now uses the user's original `IMG_3188.png` with the existing `DCGTVLogo` asset, a dark sky gradient, and “Mustang pride. Wherever you are.” The group fits horizontally at every width; wider iPads crop the lower foreground rather than outer faces. The tagline sits in a flexible dark band below the photograph so accessibility text never covers faces. Home content is centered with a 960-point maximum width.
+The Home header now uses the user's original `IMG_3188.png` with the existing `DCGTVLogo` asset, a dark sky gradient, and “Mustang pride. Wherever you are.” The group fits horizontally at every width; wider iPads crop the lower foreground rather than outer faces. The tagline sits in a flexible dark band below the photograph so accessibility text never covers faces. Home content is centered with a 760-point maximum width.
 
 ## Asset provenance
 
@@ -9,7 +9,7 @@ The Home header now uses the user's original `IMG_3188.png` with the existing `D
 ## Validation
 
 - Xcode 27.2 simulator build succeeded (iOS 17.0 app deployment target unchanged).
-- All 12 existing `DCG Booster ClubTests` passed on iPhone 18 Pro / iOS 27.0, including stale cache, offline failure, expiry, retry and cancellation live-status checks. Final logo spacing adjustment was rebuilt successfully.
+- All 12 existing `DCG Booster ClubTests` passed on iPhone 18 Pro / iOS 27.0, including stale cache, offline failure, expiry, retry and cancellation live-status checks. The final integration with the latest Home improvements was rebuilt and retested successfully.
 - Visually inspected iPhone 18 Pro / iOS 27.2, smaller iPhone 17e / iOS 27.0, and iPad Pro 13-inch / iOS 27.2 in portrait.
 - Inspected largest accessibility text (`accessibility-extra-extra-extra-large`) and dark mode on iPhone. Tagline wraps without clipping or overlapping faces. Header is one VoiceOver heading; decorative photo/logo do not repeat.
 - Screenshots use the normal app and actual API responses, without seeded or mocked broadcasts. At capture, the featured event was upcoming girls wrestling on November 17, with “View Stream” and no LIVE badge.

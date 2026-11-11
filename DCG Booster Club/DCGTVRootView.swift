@@ -200,7 +200,7 @@ private struct DCGTVHomeScreen: View {
 
                     if let featuredStream {
 
-                        StreamCardView(stream: featuredStream, isStatusCurrent: streams.isStatusCurrent)
+                        StreamCardView(stream: featuredStream, isStatusCurrent: streams.isStatusCurrent, isFeatured: true)
 
                     } else if streams.isStatusCurrent {
 
@@ -223,6 +223,7 @@ private struct DCGTVHomeScreen: View {
                         .font(.subheadline.bold())
                     }
                     .tint(Color.dcgRed)
+                    .frame(minHeight: 44)
                 }
 
                 // Next three games from Bound, including games not streamed on DCGTV.
@@ -382,9 +383,9 @@ private struct DCGTVHomeScreen: View {
                 }
             }
             .padding(16)
-            .frame(maxWidth: 960)
-            .frame(maxWidth: .infinity)
             .padding(.bottom, 35)
+            .frame(maxWidth: 760)
+            .frame(maxWidth: .infinity)
         }
         .background(Color(uiColor: .systemGroupedBackground))
         .refreshable {
@@ -516,13 +517,17 @@ private struct DCGHomeGameCard: View {
                 .frame(width: 54, height: 58)
                 .background(Color(uiColor: .tertiarySystemGroupedBackground))
                 .clipShape(RoundedRectangle(cornerRadius: 12))
+                .overlay(alignment: .top) {
+                    Capsule().fill(Color.dcgRed).frame(width: 30, height: 3)
+                }
+                .accessibilityElement(children: .combine)
             }
 
             VStack(alignment: .leading, spacing: 6) {
                 Text("\(game.sport) · \(game.level)")
                     .font(.caption.bold())
                     .foregroundStyle(Color.dcgRed)
-                    .lineLimit(1)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 Button(action: onShowDetails) {
                     Text(game.displayTitle)
@@ -544,7 +549,7 @@ private struct DCGHomeGameCard: View {
                     Text(location)
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
 
                 HStack(spacing: 14) {
@@ -587,7 +592,12 @@ private struct DCGHomeGameCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(13)
         .background(Color(uiColor: .secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 15))
+        .clipShape(RoundedRectangle(cornerRadius: 18))
+        .overlay {
+            RoundedRectangle(cornerRadius: 18)
+                .strokeBorder(Color.primary.opacity(0.06), lineWidth: 1)
+        }
+        .shadow(color: .black.opacity(0.05), radius: 8, y: 3)
     }
 }
 
