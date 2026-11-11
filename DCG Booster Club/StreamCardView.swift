@@ -4,6 +4,7 @@ struct StreamCardView: View {
 
    let stream: DCGStream
    let isStatusCurrent: Bool
+   var isFeatured = false
 
     @State private var showVideo = false
 
@@ -34,97 +35,12 @@ struct StreamCardView: View {
            }
        } label: {
 
-           HStack(alignment: .center, spacing: 12) {
-
-               // MARK: - Thumbnail
-
-               AsyncImage(
-                   url: URL(string: stream.thumbnail)
-               ) { phase in
-
-                   switch phase {
-
-                   case .success(let image):
-                       image
-                           .resizable()
-                           .scaledToFill()
-
-                   case .failure:
-                       streamThumbnailPlaceholder
-
-                   case .empty:
-                       streamThumbnailPlaceholder
-
-                   @unknown default:
-                       streamThumbnailPlaceholder
-                   }
-               }
-               .frame(width: 128, height: 76)
-               .clipped()
-               .clipShape(
-                   RoundedRectangle(cornerRadius: 10)
-               )
-
-               // MARK: - Stream Information
-
-               VStack(alignment: .leading, spacing: 7) {
-
-                   if stream.isLive {
-                       Label(
-                           isStatusCurrent ? "LIVE NOW" : "LIVE AT LAST UPDATE",
-                           systemImage: "circle.fill"
-                       )
-                       .font(.caption2.bold())
-                       .foregroundStyle(isStatusCurrent ? .red : .secondary)
-                   }
-
-                   Text(stream.title)
-                       .font(.subheadline.bold())
-                       .foregroundStyle(.primary)
-                       .lineLimit(2)
-                       .multilineTextAlignment(.leading)
-
-                   if let date = stream.startDate {
-                       Text(
-                           date,
-                           format: .dateTime
-                               .weekday(.abbreviated)
-                               .month(.abbreviated)
-                               .day()
-                               .hour()
-                               .minute()
-                       )
-                       .font(.caption)
-                       .foregroundStyle(.secondary)
-                       .lineLimit(2)
-                   }
-
-                   Label(
-                       streamActionTitle,
-                       systemImage: "play.fill"
-                   )
-                   .font(.caption.bold())
-                   .foregroundStyle(Color.dcgRed)
-
-               } // Closes information VStack
-
-               Spacer(minLength: 0)
-
-           } // Closes HStack
-
-           .padding(12)
-           .frame(
-               maxWidth: .infinity,
-               alignment: .leading
-           )
-           .background(
-               Color(uiColor: .secondarySystemGroupedBackground)
-           )
-           .clipShape(
-               RoundedRectangle(cornerRadius: 16)
-           )
-
-       } // Closes Link
+           if isFeatured {
+               featuredContent
+           } else {
+               compactContent
+           }
+       } // Closes Button
 
        .buttonStyle(.plain)
        .sheet(isPresented: $showVideo) {
@@ -133,6 +49,171 @@ struct StreamCardView: View {
                    .ignoresSafeArea()
            }
        }
+   }
+
+   private var compactContent: some View {
+       HStack(alignment: .center, spacing: 12) {
+
+           // MARK: - Thumbnail
+
+           AsyncImage(
+               url: URL(string: stream.thumbnail)
+           ) { phase in
+
+               switch phase {
+
+               case .success(let image):
+                   image
+                       .resizable()
+                       .scaledToFill()
+
+               case .failure:
+                   streamThumbnailPlaceholder
+
+               case .empty:
+                   streamThumbnailPlaceholder
+
+               @unknown default:
+                   streamThumbnailPlaceholder
+               }
+           }
+           .frame(width: 128, height: 76)
+           .clipped()
+           .clipShape(
+               RoundedRectangle(cornerRadius: 10)
+           )
+
+           // MARK: - Stream Information
+
+           VStack(alignment: .leading, spacing: 7) {
+
+               if stream.isLive {
+                   Label(
+                       isStatusCurrent ? "LIVE NOW" : "LIVE AT LAST UPDATE",
+                       systemImage: "circle.fill"
+                   )
+                   .font(.caption2.bold())
+                   .foregroundStyle(isStatusCurrent ? .red : .secondary)
+               }
+
+               Text(stream.title)
+                   .font(.subheadline.bold())
+                   .foregroundStyle(.primary)
+                   .lineLimit(2)
+                   .multilineTextAlignment(.leading)
+
+               if let date = stream.startDate {
+                   Text(
+                       date,
+                       format: .dateTime
+                           .weekday(.abbreviated)
+                           .month(.abbreviated)
+                           .day()
+                           .hour()
+                           .minute()
+                   )
+                   .font(.caption)
+                   .foregroundStyle(.secondary)
+                   .lineLimit(2)
+               }
+
+               Label(
+                   streamActionTitle,
+                   systemImage: "play.fill"
+               )
+               .font(.caption.bold())
+               .foregroundStyle(Color.dcgRed)
+
+           } // Closes information VStack
+
+           Spacer(minLength: 0)
+
+       } // Closes HStack
+
+       .padding(12)
+       .frame(
+           maxWidth: .infinity,
+           alignment: .leading
+       )
+       .background(
+           Color(uiColor: .secondarySystemGroupedBackground)
+       )
+       .clipShape(
+           RoundedRectangle(cornerRadius: 16)
+       )
+
+   }
+
+   // The same CMS broadcast and playback sheet, presented more prominently on Home.
+   private var featuredContent: some View {
+       VStack(alignment: .leading, spacing: 0) {
+           GeometryReader { geometry in
+               AsyncImage(url: URL(string: stream.thumbnail)) { phase in
+                   if case .success(let image) = phase {
+                       image.resizable().scaledToFill()
+                   } else {
+                       Rectangle()
+                           .fill(LinearGradient(colors: [Color(white: 0.12), Color.dcgRed.opacity(0.5)],
+                                                startPoint: .topLeading, endPoint: .bottomTrailing))
+                   }
+               }
+               .frame(width: geometry.size.width, height: geometry.size.height)
+               .clipped()
+           }
+           .aspectRatio(16.0 / 9.0, contentMode: .fit)
+           .overlay {
+               Image(systemName: "play.fill")
+                   .font(.title)
+                   .foregroundStyle(.white)
+                   .padding(22)
+                   .background(.black.opacity(0.55), in: Circle())
+                   .overlay(Circle().strokeBorder(.white.opacity(0.7), lineWidth: 2))
+           }
+           .accessibilityHidden(true)
+
+           VStack(alignment: .leading, spacing: 10) {
+               if stream.isLive {
+                   Label(isStatusCurrent ? "LIVE NOW" : "LIVE AT LAST UPDATE",
+                         systemImage: isStatusCurrent ? "dot.radiowaves.left.and.right" : "clock")
+                       .font(.caption.bold())
+                       .padding(.horizontal, 10)
+                       .padding(.vertical, 6)
+                       .background(isStatusCurrent ? Color.dcgRed : Color(white: 0.3),
+                                   in: RoundedRectangle(cornerRadius: 6))
+               } else if stream.status.lowercased() == "upcoming" {
+                   Text("UPCOMING BROADCAST")
+                       .font(.caption.bold())
+                       .foregroundStyle(.white.opacity(0.8))
+               }
+
+               Text(stream.title)
+                   .font(.title2.bold())
+                   .fixedSize(horizontal: false, vertical: true)
+               if let date = stream.startDate {
+                   Text(date, format: .dateTime.weekday(.abbreviated).month(.abbreviated)
+                       .day().hour().minute())
+                       .font(.subheadline)
+                       .foregroundStyle(.white.opacity(0.85))
+               }
+               Label(streamActionTitle, systemImage: "play.fill")
+                   .font(.headline)
+                   .padding(.vertical, 12)
+                   .frame(maxWidth: .infinity)
+                   .background(Color.dcgRed, in: RoundedRectangle(cornerRadius: 12))
+                   .padding(.top, 4)
+           }
+           .padding(18)
+       }
+       .foregroundStyle(.white)
+       .multilineTextAlignment(.leading)
+       .frame(maxWidth: .infinity, alignment: .leading)
+       .background(Color(white: 0.08))
+       .clipShape(RoundedRectangle(cornerRadius: 20))
+       .overlay {
+           RoundedRectangle(cornerRadius: 20)
+               .strokeBorder(Color.primary.opacity(0.1), lineWidth: 1)
+       }
+       .shadow(color: .black.opacity(0.12), radius: 10, y: 4)
    }
 
    // MARK: - Thumbnail Placeholder
