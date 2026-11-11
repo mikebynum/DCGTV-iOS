@@ -86,7 +86,7 @@ final class DCGHomeHeroLayoutTests: XCTestCase {
         capture.lifetime = .keepAlways
         add(capture)
         app.buttons.matching(NSPredicate(format: "label == %@", "Shows")).firstMatch.tap()
-        XCTAssertTrue(app.staticTexts["DCGTV Originals"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.images["dcgtv.shows.header"].waitForExistence(timeout: 5))
         homeTab.tap()
         XCTAssertTrue(homeTab.isSelected)
     }

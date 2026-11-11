@@ -939,6 +939,8 @@ private struct DCGTVScheduleScreen: View {
 
 private struct DCGTVShowsScreen: View {
 
+   @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
    private let channelURL = URL(
        string: "https://www.youtube.com/@DCGActivities/videos"
    )!
@@ -949,22 +951,18 @@ private struct DCGTVShowsScreen: View {
 
            ScrollView {
 
-               VStack(alignment: .leading, spacing: 24) {
+               VStack(alignment: .leading, spacing: 16) {
 
                    // MARK: Header
 
-                   VStack(alignment: .leading, spacing: 8) {
-
-                       Text("DCGTV Originals")
-                           .font(.largeTitle.bold())
-
-                       Text(
-                           "Original programming, interviews, " +
-                           "and stories from DCGTV."
-                       )
-                       .font(.subheadline)
-                       .foregroundStyle(.secondary)
-                   }
+                   Image("DCGTVShowsHeader")
+                       .renderingMode(.original)
+                       .resizable()
+                       .scaledToFit()
+                       .frame(maxWidth: .infinity)
+                       .accessibilityLabel("DCGTV Originals. Presented by Charter Bank.")
+                       .accessibilityAddTraits(.isHeader)
+                       .accessibilityIdentifier("dcgtv.shows.header")
 
                    // MARK: Actual YouTube Playlist Episodes
 
@@ -974,17 +972,22 @@ private struct DCGTVShowsScreen: View {
 
                    Link(destination: channelURL) {
 
-                       HStack(spacing: 12) {
+                       let layout = dynamicTypeSize.isAccessibilitySize
+                           ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+                           : AnyLayout(HStackLayout(spacing: 12))
+                       layout {
 
                            Image(systemName: "play.rectangle.fill")
                                .font(.title3)
 
                            Text("Browse All DCGTV Videos")
                                .font(.subheadline.bold())
+                               .fixedSize(horizontal: false, vertical: true)
+                               .frame(maxWidth: .infinity, alignment: .leading)
 
-                           Spacer()
-
-                           Image(systemName: "arrow.up.right")
+                           if !dynamicTypeSize.isAccessibilitySize {
+                               Image(systemName: "arrow.up.right")
+                           }
                        }
                        .padding(16)
                        .foregroundStyle(.white)
@@ -1001,8 +1004,10 @@ private struct DCGTVShowsScreen: View {
                        .foregroundStyle(.secondary)
                        .frame(maxWidth: .infinity)
                }
+               .frame(maxWidth: 760)
                .padding(16)
                .padding(.bottom, 35)
+               .frame(maxWidth: .infinity)
            }
            .background(
                Color(uiColor: .systemGroupedBackground)
