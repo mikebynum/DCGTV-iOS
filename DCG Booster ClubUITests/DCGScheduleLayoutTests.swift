@@ -30,7 +30,7 @@ final class DCGScheduleLayoutTests: XCTestCase {
         XCTAssertTrue(app.buttons["dcgtv.schedule.sportFilter"].exists)
         XCTAssertTrue(app.buttons["dcgtv.schedule.levelFilter"].exists)
         search.tap()
-        search.typeText("unmatched-event-dcgtv-789")
+        search.typeText("unmatched-event-dcgtv-789\n")
         let clear = app.buttons["Clear filters"]
         for _ in 0..<5 {
             if clear.isHittable { break }
@@ -59,7 +59,7 @@ final class DCGScheduleLayoutTests: XCTestCase {
         afterScroll.name = "Schedule after scrolling reset results"
         afterScroll.lifetime = .keepAlways
         add(afterScroll)
-        let details = try XCTUnwrap(visible, "Schedule hierarchy after clearing search: \(app.debugDescription)")
+        let details = try XCTUnwrap(visible, "Schedule should expose a visible game-details action after clearing search")
         XCTAssertGreaterThanOrEqual(details.frame.height, 44)
         XCTAssertGreaterThanOrEqual(details.frame.minX, app.frame.minX)
         XCTAssertLessThanOrEqual(details.frame.maxX, app.frame.maxX)

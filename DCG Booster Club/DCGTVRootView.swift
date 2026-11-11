@@ -349,19 +349,18 @@ private struct DCGTVHomeScreen: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
 
-                Link(
-                    "Visit the DCG Booster Club",
-                    destination: URL(
-                        string: "https://dcgboosterclub.com/"
-                    )!
-                )
-                .font(.subheadline.bold())
+                Link(destination: URL(string: "https://dcgboosterclub.com/")!) {
+                    Text("Visit the DCG Booster Club")
+                        .font(.subheadline.bold())
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
+                }
                 .foregroundStyle(Color.dcgRed)
             }
         }
+        .frame(maxWidth: 760)
         .padding(16)
         .padding(.bottom, 35)
-        .frame(maxWidth: 760)
         .frame(maxWidth: .infinity)
     }
 }
@@ -834,8 +833,10 @@ private struct DCGTVWatchScreen: View {
                    )
                }
            }
+           .frame(maxWidth: 760)
            .padding(16)
            .padding(.bottom, 35)
+           .frame(maxWidth: .infinity)
        }
        .background(
            Color(uiColor: .systemGroupedBackground)
@@ -868,7 +869,7 @@ private struct DCGTVScheduleScreen: View {
 
         ScrollView {
 
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 16) {
 
                 DCGScheduleHeader()
 
@@ -910,14 +911,13 @@ private struct DCGTVScheduleScreen: View {
                     }
                 }
 
-                Link(
-                    "Full YouTube Schedule",
-                    destination: URL(
-                        string: "https://www.youtube.com/@DCGActivities/streams"
-                    )!
-                )
+                Link(destination: URL(string: "https://www.youtube.com/@DCGActivities/streams")!) {
+                    Text("Full YouTube Schedule")
+                        .font(.subheadline.bold())
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
+                }
                 .foregroundStyle(Color.dcgRed)
-                .frame(minHeight: 44)
             }
             .frame(maxWidth: 760)
             .padding(16)
