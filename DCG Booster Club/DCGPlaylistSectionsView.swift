@@ -146,13 +146,15 @@ private struct SelectedPlaylistVideo: Identifiable {
 
 struct DCGPlaylistSectionsView: View {
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     @StateObject private var service = DCGPlaylistService()
 
     @State private var selectedVideo: SelectedPlaylistVideo?
 
     var body: some View {
 
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 10) {
 
             if service.isLoading && service.lastUpdated == nil {
 
@@ -238,12 +240,15 @@ struct DCGPlaylistSectionsView: View {
 
         } label: {
 
-            HStack(spacing: 16) {
+            let layout = dynamicTypeSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: 6))
+                : AnyLayout(HStackLayout(spacing: 10))
+            layout {
 
                 Image(systemName: symbol)
-                    .font(.system(size: 28))
+                    .font(.system(size: 24))
                     .foregroundStyle(Color.dcgRed)
-                    .frame(width: 60, height: 60)
+                    .frame(width: 44, height: 44)
                     .background(
                         Color.dcgRed.opacity(0.10)
                     )
@@ -251,10 +256,10 @@ struct DCGPlaylistSectionsView: View {
                         RoundedRectangle(cornerRadius: 14)
                     )
 
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: 4) {
 
                     Text(title)
-                        .font(.headline)
+                        .font(.subheadline.bold())
                         .foregroundStyle(.primary)
 
                     Text(subtitle)
@@ -269,14 +274,18 @@ struct DCGPlaylistSectionsView: View {
                     .font(.caption.bold())
                     .foregroundStyle(Color.dcgRed)
                 }
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
 
-                Spacer(minLength: 0)
-
-                Image(systemName: "chevron.right")
-                    .font(.subheadline.bold())
-                    .foregroundStyle(.secondary)
+                if !dynamicTypeSize.isAccessibilitySize {
+                    Image(systemName: "chevron.right")
+                        .font(.caption.bold())
+                        .foregroundStyle(.secondary)
+                        .accessibilityHidden(true)
+                }
             }
-            .padding(16)
+            .padding(12)
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
             .background(
                 Color(uiColor: .secondarySystemGroupedBackground)
             )
@@ -285,6 +294,7 @@ struct DCGPlaylistSectionsView: View {
             )
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier("dcgtv.shows.\(key)")
     }
 
     // MARK: - Open Video
@@ -306,6 +316,8 @@ struct DCGPlaylistSectionsView: View {
 
 private struct DCGShowEpisodesView: View {
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     let title: String
     let subtitle: String
     let symbol: String
@@ -326,16 +338,19 @@ private struct DCGShowEpisodesView: View {
 
         ScrollView {
 
-            VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: 12) {
 
                 // MARK: Show Header
 
-                HStack(spacing: 14) {
+                let layout = dynamicTypeSize.isAccessibilitySize
+                    ? AnyLayout(VStackLayout(alignment: .leading, spacing: 6))
+                    : AnyLayout(HStackLayout(spacing: 10))
+                layout {
 
                     Image(systemName: symbol)
-                        .font(.system(size: 30))
+                        .font(.system(size: 24))
                         .foregroundStyle(Color.dcgRed)
-                        .frame(width: 64, height: 64)
+                        .frame(width: 48, height: 48)
                         .background(
                             Color.dcgRed.opacity(0.10)
                         )
@@ -343,10 +358,10 @@ private struct DCGShowEpisodesView: View {
                             RoundedRectangle(cornerRadius: 16)
                         )
 
-                    VStack(alignment: .leading, spacing: 6) {
+                    VStack(alignment: .leading, spacing: 4) {
 
                         Text(title)
-                            .font(.title2.bold())
+                            .font(.title3.bold())
 
                         Text(subtitle)
                             .font(.subheadline)
@@ -378,7 +393,7 @@ private struct DCGShowEpisodesView: View {
 
                 } else {
 
-                    LazyVStack(spacing: 12) {
+                    LazyVStack(spacing: 8) {
 
                         ForEach(sortedVideos) { video in
 
@@ -389,12 +404,15 @@ private struct DCGShowEpisodesView: View {
                                 DCGShowEpisodeCard(video: video)
                             }
                             .buttonStyle(.plain)
+                            .accessibilityIdentifier("dcgtv.shows.episode.\(video.id)")
                         }
                     }
                 }
             }
+            .frame(maxWidth: 760)
             .padding(16)
             .padding(.bottom, 35)
+            .frame(maxWidth: .infinity)
         }
         .background(
             Color(uiColor: .systemGroupedBackground)
@@ -407,78 +425,70 @@ private struct DCGShowEpisodesView: View {
 // MARK: - Episode Card
 
 private struct DCGShowEpisodeCard: View {
-
     let video: DCGPlaylistVideo
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-
-        HStack(alignment: .center, spacing: 12) {
-
-            AsyncImage(
-                url: URL(string: video.thumbnail)
-            ) { phase in
-
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 6))
+            : AnyLayout(HStackLayout(spacing: 10))
+        return layout {
+            AsyncImage(url: URL(string: video.thumbnail)) { phase in
                 if case .success(let image) = phase {
-
-                    image
-                        .resizable()
-                        .scaledToFill()
-
+                    image.resizable().scaledToFill()
                 } else {
-
                     Rectangle()
                         .fill(Color.dcgRed.opacity(0.12))
                         .overlay {
-
                             Image(systemName: "play.rectangle.fill")
                                 .font(.title2)
                                 .foregroundStyle(Color.dcgRed)
                         }
                 }
             }
-            .frame(width: 120, height: 72)
+            .frame(width: dynamicTypeSize.isAccessibilitySize ? 160 : 104,
+                   height: dynamicTypeSize.isAccessibilitySize ? 90 : 58.5)
             .clipped()
-            .clipShape(
-                RoundedRectangle(cornerRadius: 9)
-            )
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .accessibilityHidden(true)
 
-            VStack(alignment: .leading, spacing: 7) {
-
+            VStack(alignment: .leading, spacing: 4) {
                 Text(video.title)
                     .font(.subheadline.bold())
                     .foregroundStyle(.primary)
-                    .lineLimit(3)
-                    .multilineTextAlignment(.leading)
-
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
+                    .fixedSize(horizontal: false, vertical: true)
                 if let date = video.publicationDate {
-
-                    Text(date, format: .dateTime
-                        .month(.abbreviated)
-                        .day()
-                        .year()
-                    )
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    Text(date, format: .dateTime.month(.abbreviated).day().year())
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
-
-                Label(
-                    "Watch Episode",
-                    systemImage: "play.fill"
-                )
-                .font(.caption.bold())
-                .foregroundStyle(Color.dcgRed)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
 
-            Spacer(minLength: 0)
+            Image(systemName: "play.fill")
+                .font(.subheadline.bold())
+                .foregroundStyle(Color.dcgRed)
+                .padding(8)
+                .background(Color.dcgRed.opacity(0.1), in: Circle())
+                .accessibilityHidden(true)
         }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            Color(uiColor: .secondarySystemGroupedBackground)
-        )
-        .clipShape(
-            RoundedRectangle(cornerRadius: 14)
-        )
+        .multilineTextAlignment(.leading)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+        .background(Color(uiColor: .secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(episodeAccessibilityLabel)
+    }
+
+    private var episodeAccessibilityLabel: Text {
+        if let date = video.publicationDate {
+            return Text(video.title) + Text(", ")
+                + Text(date, format: .dateTime.month().day().year())
+                + Text(", Watch Episode")
+        }
+        return Text(video.title) + Text(", Watch Episode")
     }
 }
-
