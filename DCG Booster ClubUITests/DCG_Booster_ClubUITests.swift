@@ -30,8 +30,16 @@ final class DCG_Booster_ClubUITests: XCTestCase {
         XCTAssertTrue(app.images["dcgtv.home.hero"].waitForExistence(timeout: 10))
         let hero = app.images["dcgtv.home.hero"]
         XCTAssertEqual(hero.frame.width / hero.frame.height, 2, accuracy: 0.02)
-        XCTAssertGreaterThanOrEqual(hero.frame.minX, app.frame.minX)
-        XCTAssertLessThanOrEqual(hero.frame.maxX, app.frame.maxX)
+        XCTAssertEqual(hero.frame.minX, app.frame.minX, accuracy: 1)
+        XCTAssertEqual(hero.frame.maxX, app.frame.maxX, accuracy: 1)
+        let container = app.otherElements["dcgtv.home.hero.container"]
+        XCTAssertTrue(container.exists)
+        // iPad retains its native top tab controls; iPhone artwork reaches y=0.
+        if UIDevice.current.userInterfaceIdiom == .phone {
+            XCTAssertEqual(container.frame.minY, app.frame.minY, accuracy: 1)
+        }
+        XCTAssertGreaterThan(hero.frame.minY, container.frame.minY)
+        XCTAssertTrue(hero.label.contains("Charter Bank"))
         XCTAssertFalse(app.descendants(matching: .any)["DCGTV livestreams presented by Charter Bank"].exists)
         let home = XCTAttachment(screenshot: app.screenshot())
         home.name = "Sponsored hero Home"
@@ -52,7 +60,7 @@ final class DCG_Booster_ClubUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Upcoming DCGTV Livestreams"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "label == %@ AND selected == true", "Schedule")).firstMatch.exists)
         XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "label == %@", "Shows")).firstMatch.exists)
-        app.tabBars.buttons["Watch"].tap()
+        app.buttons.matching(NSPredicate(format: "label == %@", "Watch")).firstMatch.tap()
         XCTAssertTrue(app.descendants(matching: .any)["DCGTV livestreams presented by Charter Bank"].waitForExistence(timeout: 5))
     }
 
@@ -67,6 +75,49 @@ final class DCG_Booster_ClubUITests: XCTestCase {
         screenshot.lifetime = .keepAlways
         add(screenshot)
         XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "label == %@ AND selected == true", "Home")).firstMatch.exists)
+    }
+
+    @MainActor
+    func testHeroInDarkMode() throws {
+        let app = XCUIApplication()
+        app.launchArguments += ["-AppleInterfaceStyle", "Dark"]
+        app.launch()
+        let hero = app.images["dcgtv.home.hero"]
+        XCTAssertTrue(hero.waitForExistence(timeout: 10))
+        XCTAssertEqual(hero.frame.width / hero.frame.height, 2, accuracy: 0.02)
+        XCTAssertEqual(hero.frame.minX, app.frame.minX, accuracy: 1)
+        XCTAssertEqual(hero.frame.maxX, app.frame.maxX, accuracy: 1)
+        let capture = XCTAttachment(screenshot: app.screenshot())
+        capture.name = "Home dark mode"
+        capture.lifetime = .keepAlways
+        add(capture)
+    }
+
+    @MainActor
+    func testHeroAfterRotationAndReturningHome() throws {
+        let app = XCUIApplication()
+        app.launch()
+        defer { XCUIDevice.shared.orientation = .portrait }
+        XCUIDevice.shared.orientation = .landscapeLeft
+        let hero = app.images["dcgtv.home.hero"]
+        XCTAssertTrue(hero.waitForExistence(timeout: 10))
+        // Wait for the rotation to settle before checking screen geometry.
+        XCTAssertEqual(XCTWaiter.wait(for: [expectation(for: NSPredicate { _, _ in app.frame.width > app.frame.height }, evaluatedWith: app)], timeout: 5), .completed)
+        XCTAssertEqual(hero.frame.width / hero.frame.height, 2, accuracy: 0.02)
+        XCTAssertEqual(hero.frame.minX, app.frame.minX, accuracy: 1)
+        XCTAssertEqual(hero.frame.maxX, app.frame.maxX, accuracy: 1)
+        // Screen capture can lag the accessibility rotation on Simulator.
+        Thread.sleep(forTimeInterval: 1)
+        let capture = XCTAttachment(screenshot: app.screenshot())
+        capture.name = "Home landscape"
+        capture.lifetime = .keepAlways
+        add(capture)
+        XCUIDevice.shared.orientation = .portrait
+        app.buttons.matching(NSPredicate(format: "label == %@", "Watch")).firstMatch.tap()
+        app.buttons.matching(NSPredicate(format: "label == %@", "Home")).firstMatch.tap()
+        XCTAssertTrue(hero.waitForExistence(timeout: 5))
+        XCTAssertEqual(hero.frame.minX, app.frame.minX, accuracy: 1)
+        XCTAssertEqual(hero.frame.maxX, app.frame.maxX, accuracy: 1)
     }
 
     @MainActor
