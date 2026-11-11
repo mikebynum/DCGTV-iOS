@@ -1119,6 +1119,7 @@ struct DCGRecentResultsView: View {
     @ObservedObject var service: DCGResultsService
     var limit: Int = 3
     var showHeading: Bool = true
+    var isCompact = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -1145,7 +1146,7 @@ struct DCGRecentResultsView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 12))
             } else {
                 ForEach(Array(service.results.prefix(limit))) { result in
-                    DCGResultCard(result: result)
+                    DCGResultCard(result: result, isCompact: isCompact)
                 }
             }
         }
@@ -1154,8 +1155,86 @@ struct DCGRecentResultsView: View {
 
 private struct DCGResultCard: View {
     let result: DCGResult
+    var isCompact = false
 
     var body: some View {
+        if isCompact {
+            compactContent
+        } else {
+            fullContent
+        }
+    }
+
+    private var compactContent: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("\(result.sport) · \(result.level)")
+                .font(.caption.bold())
+                .foregroundStyle(Color.dcgRed)
+                .fixedSize(horizontal: false, vertical: true)
+
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .firstTextBaseline, spacing: 12) {
+                    matchup
+                    Spacer(minLength: 0)
+                    score
+                }
+                VStack(alignment: .leading, spacing: 4) {
+                    matchup
+                    score
+                }
+            }
+
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 12) {
+                    resultDate
+                    Spacer(minLength: 0)
+                    detailsLink
+                }
+                VStack(alignment: .leading, spacing: 4) {
+                    resultDate
+                    detailsLink
+                }
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(uiColor: .secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+    }
+
+    private var matchup: some View {
+        Text("DCG vs \(result.opponent)")
+            .font(.subheadline.bold())
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var score: some View {
+        Text("\(result.dcgScore)–\(result.opponentScore) · \(result.outcome)")
+            .font(.subheadline.bold().monospacedDigit())
+            .fixedSize()
+            .accessibilityLabel("Final: DCG \(result.dcgScore), \(result.opponent) \(result.opponentScore). \(result.outcome == "W" ? "Win" : result.outcome == "L" ? "Loss" : "Tie")")
+    }
+
+    @ViewBuilder private var resultDate: some View {
+        if let date = result.eventDate {
+            Text(date, format: .dateTime.month(.abbreviated).day().year())
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize()
+        }
+    }
+
+    @ViewBuilder private var detailsLink: some View {
+        if let urlString = result.url, let url = URL(string: urlString),
+           url.scheme?.lowercased() == "https" {
+            Link("Game Details", destination: url)
+                .font(.caption.bold())
+                .foregroundStyle(Color.dcgRed)
+                .frame(minHeight: 44)
+        }
+    }
+
+    private var fullContent: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Text("\(result.sport) · \(result.level)")

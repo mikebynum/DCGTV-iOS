@@ -161,17 +161,9 @@ struct StreamCardView: View {
                .clipped()
            }
            .aspectRatio(16.0 / 9.0, contentMode: .fit)
-           .overlay {
-               Image(systemName: "play.fill")
-                   .font(.title)
-                   .foregroundStyle(.white)
-                   .padding(22)
-                   .background(.black.opacity(0.55), in: Circle())
-                   .overlay(Circle().strokeBorder(.white.opacity(0.7), lineWidth: 2))
-           }
            .accessibilityHidden(true)
 
-           VStack(alignment: .leading, spacing: 10) {
+           VStack(alignment: .leading, spacing: 6) {
                if stream.isLive {
                    Label(isStatusCurrent ? "LIVE NOW" : "LIVE AT LAST UPDATE",
                          systemImage: isStatusCurrent ? "dot.radiowaves.left.and.right" : "clock")
@@ -186,23 +178,23 @@ struct StreamCardView: View {
                        .foregroundStyle(.white.opacity(0.8))
                }
 
-               Text(stream.title)
-                   .font(.title2.bold())
+               Text(stream.featuredTitle)
+                   .font(.headline)
+                   .accessibilityLabel(stream.title)
                    .fixedSize(horizontal: false, vertical: true)
                if let date = stream.startDate {
                    Text(date, format: .dateTime.weekday(.abbreviated).month(.abbreviated)
                        .day().hour().minute())
-                       .font(.subheadline)
+                       .font(.caption)
                        .foregroundStyle(.white.opacity(0.85))
                }
-               Label(streamActionTitle, systemImage: "play.fill")
+               Label(streamActionTitle, systemImage: stream.status.lowercased() == "upcoming" ? "calendar" : "play.fill")
                    .font(.headline)
-                   .padding(.vertical, 12)
-                   .frame(maxWidth: .infinity)
+                   .frame(maxWidth: .infinity, minHeight: 44)
                    .background(Color.dcgRed, in: RoundedRectangle(cornerRadius: 12))
-                   .padding(.top, 4)
+                   .padding(.top, 2)
            }
-           .padding(18)
+           .padding(12)
        }
        .foregroundStyle(.white)
        .multilineTextAlignment(.leading)

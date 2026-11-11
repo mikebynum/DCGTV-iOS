@@ -161,15 +161,6 @@ private struct DCGTVHomeScreen: View {
         return Array(upcoming.filter { favorites.contains($0.sport) }.prefix(3))
     }
 
-    private var nextAwayGame: DCGGame? {
-        let upcoming = games.games.filter {
-            ($0.startDate ?? .distantPast) >= Date().addingTimeInterval(-6 * 60 * 60) &&
-            $0.externalStream?.validURL != nil
-        }
-        let favorites = favoriteSports
-        return upcoming.first(where: { favorites.contains($0.sport) }) ?? upcoming.first
-    }
-
     private var featuredStream: DCGStream? {
         streams.streams.first { stream in
             let title = stream.title.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -212,7 +203,7 @@ private struct DCGTVHomeScreen: View {
     }
 
     private var homeContent: some View {
-        VStack(alignment: .leading, spacing: 24) {
+        VStack(alignment: .leading, spacing: 20) {
 
             // Featured Broadcast
 
@@ -255,12 +246,14 @@ private struct DCGTVHomeScreen: View {
                 HStack(alignment: .firstTextBaseline) {
                     Text(favoriteSports.isEmpty ? "Upcoming Mustang Games" : "Your Mustang Games")
                         .font(.title2.bold())
-                    Spacer()
+                    Spacer(minLength: 12)
                     Button("See All") {
                         selectedTab = .schedule
                     }
                     .font(.subheadline.bold())
                     .tint(Color.dcgRed)
+                    .fixedSize()
+                    .frame(minHeight: 44)
                 }
 
                 HStack {
@@ -311,76 +304,10 @@ private struct DCGTVHomeScreen: View {
                     }
                 }
 
-                // The matching game already includes its stream link.
-                // Keep Home compact and send fans to Watch for the full list.
-                if nextAwayGame != nil {
-                    Button {
-                        selectedTab = .watch
-                    } label: {
-                        HStack(spacing: 8) {
-                            Image(systemName: "play.rectangle.on.rectangle")
-                            Text("See All Away Streams")
-                            Spacer()
-                            Image(systemName: "chevron.right")
-                                .font(.caption)
-                        }
-                        .font(.subheadline.bold())
-                        .foregroundStyle(Color.dcgRed)
-                        .padding(.vertical, 6)
-                    }
-                    .buttonStyle(.plain)
-                }
             }
 
-            // Final scores verified in WordPress.
-            DCGRecentResultsView(service: results, limit: 3)
-
-            // Watch DCGTV
-
-            VStack(alignment: .leading, spacing: 12) {
-
-                Text("Watch DCGTV")
-                    .font(.title2.bold())
-
-                Button {
-                    selectedTab = .watch
-                } label: {
-
-                    Label(
-                        "Live & Recent Broadcasts",
-                        systemImage: "play.rectangle.fill"
-                    )
-                    .frame(maxWidth: .infinity)
-                    .padding(16)
-                    .foregroundStyle(.white)
-                    .background(Color.dcgRed)
-                    .clipShape(
-                        RoundedRectangle(cornerRadius: 14)
-                    )
-                }
-
-                Button {
-                    selectedTab = .shows
-                } label: {
-                    Label(
-                        "Explore DCGTV Shows",
-                        systemImage: "film.stack"
-                    )
-                    .font(.headline)
-                    .frame(maxWidth: .infinity)
-                    .padding(16)
-                    .foregroundStyle(Color.dcgRed)
-                    .background(Color(uiColor: .secondarySystemGroupedBackground))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 14)
-                            .strokeBorder(Color.dcgRed.opacity(0.45), lineWidth: 1)
-                    }
-                    .clipShape(
-                        RoundedRectangle(cornerRadius: 14)
-                    )
-                }
-                .buttonStyle(.plain)
-            }
+            // Keep the fuller results list in Schedule.
+            DCGRecentResultsView(service: results, limit: 2, isCompact: true)
 
             // Booster Club
 
@@ -566,81 +493,74 @@ private struct DCGHomeGameCard: View {
     }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 13) {
+        HStack(alignment: .top, spacing: 10) {
             if let date = game.startDate {
                 VStack(spacing: 2) {
-                    Text(date, format: .dateTime.weekday(.abbreviated))
+                    Text(date, format: .dateTime.month(.abbreviated))
                         .font(.caption2.bold())
                         .foregroundStyle(.secondary)
                     Text(date, format: .dateTime.day())
                         .font(.title2.bold())
-                        .foregroundStyle(.primary)
                 }
-                .frame(width: 54, height: 58)
-                .background(Color(uiColor: .tertiarySystemGroupedBackground))
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-                .overlay(alignment: .top) {
-                    Capsule().fill(Color.dcgRed).frame(width: 30, height: 3)
-                }
+                .frame(minWidth: 44)
+                .padding(.vertical, 6)
+                .background(Color(uiColor: .tertiarySystemGroupedBackground),
+                            in: RoundedRectangle(cornerRadius: 10))
                 .accessibilityElement(children: .combine)
             }
 
-            VStack(alignment: .leading, spacing: 6) {
-                Text("\(game.sport) · \(game.level)")
-                    .font(.caption.bold())
-                    .foregroundStyle(Color.dcgRed)
-                    .fixedSize(horizontal: false, vertical: true)
-
+            VStack(alignment: .leading, spacing: 4) {
+                // The whole information block opens details, eliminating a duplicate row.
                 Button(action: onShowDetails) {
-                    Text(game.displayTitle)
-                        .font(.subheadline.bold())
-                        .foregroundStyle(.primary)
-                        .lineLimit(2)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .buttonStyle(.plain)
-
-                if let date = game.startDate {
-                    Text(date, format: .dateTime.hour().minute())
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
-                if let location = game.location, !location.isEmpty {
-                    Text(location)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                HStack(spacing: 14) {
-                    if let url = broadcastURL {
-                        Link(destination: url) {
-                            Label(
-                                "Watch on DCGTV",
-                                systemImage: "play.fill"
-                            )
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("\(game.sport) · \(game.level)")
+                            .font(.caption.bold())
+                            .foregroundStyle(Color.dcgRed)
+                        HStack(alignment: .firstTextBaseline, spacing: 8) {
+                            Text(game.displayTitle)
+                                .font(.subheadline.bold())
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            Image(systemName: "chevron.right")
+                                .font(.caption.bold())
+                                .foregroundStyle(.secondary)
+                        }
+                        if let date = game.startDate {
+                            Text(date, format: .dateTime.weekday(.abbreviated).hour().minute())
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        if let location = game.location, !location.isEmpty {
+                            Text(location)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                         }
                     }
-
-                    Button("Game Details", action: onShowDetails)
+                    .foregroundStyle(.primary)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                    .contentShape(Rectangle())
                 }
-                .font(.caption.bold())
-                .foregroundStyle(Color.dcgRed)
-                .padding(.top, 2)
+                .buttonStyle(.plain)
+                .accessibilityHint("Opens game details")
 
-                if let external = game.externalStream,
-                   let url = external.validURL {
+                if let url = broadcastURL {
                     Link(destination: url) {
-                        Label(
-                            "Away Stream: \(external.provider)",
-                            systemImage: "play.rectangle.on.rectangle"
-                        )
-                        .font(.caption.bold())
+                        Label("Watch on DCGTV", systemImage: "play.fill")
+                            .frame(minHeight: 44)
                     }
+                    .font(.caption.bold())
                     .foregroundStyle(Color.dcgRed)
-                    .padding(.top, 3)
+                }
+
+                if let external = game.externalStream, let url = external.validURL {
+                    Link(destination: url) {
+                        Label("Away Stream: \(external.provider)",
+                              systemImage: "play.rectangle.on.rectangle")
+                            .frame(minHeight: 44)
+                    }
+                    .font(.caption.bold())
+                    .foregroundStyle(Color.dcgRed)
                     if let note = external.note, !note.isEmpty {
                         Text(note)
                             .font(.caption2)
@@ -648,18 +568,11 @@ private struct DCGHomeGameCard: View {
                     }
                 }
             }
-
-            Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(13)
+        .padding(12)
         .background(Color(uiColor: .secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 18))
-        .overlay {
-            RoundedRectangle(cornerRadius: 18)
-                .strokeBorder(Color.primary.opacity(0.06), lineWidth: 1)
-        }
-        .shadow(color: .black.opacity(0.05), radius: 8, y: 3)
+        .clipShape(RoundedRectangle(cornerRadius: 14))
     }
 }
 

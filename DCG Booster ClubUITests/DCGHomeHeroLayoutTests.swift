@@ -48,4 +48,47 @@ final class DCGHomeHeroLayoutTests: XCTestCase {
         XCTAssertEqual(hero.frame.maxX, app.frame.maxX, accuracy: 1)
     }
 
+    @MainActor
+    func testCompactHomeKeepsFooterAboveTabsAndRemovesShortcuts() throws {
+        try checkCompactHome(accessibility: false)
+    }
+
+    @MainActor
+    func testCompactHomeAtAccessibilityTextSize() throws {
+        try checkCompactHome(accessibility: true)
+    }
+
+    @MainActor
+    private func checkCompactHome(accessibility: Bool) throws {
+        let app = XCUIApplication()
+        if accessibility {
+            app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
+        }
+        app.launch()
+        XCTAssertTrue(app.images["dcgtv.home.hero"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["Live & Recent Broadcasts"].exists)
+        XCTAssertFalse(app.buttons["Explore DCGTV Shows"].exists)
+        XCTAssertFalse(app.buttons["See All Away Streams"].exists)
+
+        let footer = app.links["Visit the DCG Booster Club"]
+        for _ in 0..<12 {
+            if footer.isHittable { break }
+            app.swipeUp()
+        }
+        XCTAssertTrue(footer.isHittable)
+        let homeTab = app.buttons.matching(NSPredicate(format: "label == %@", "Home")).firstMatch
+        XCTAssertTrue(homeTab.isHittable)
+        if UIDevice.current.userInterfaceIdiom == .phone {
+            XCTAssertLessThanOrEqual(footer.frame.maxY, homeTab.frame.minY)
+        }
+        let capture = XCTAttachment(screenshot: app.screenshot())
+        capture.name = accessibility ? "Compact Home accessibility results and footer" : "Compact Home results and footer"
+        capture.lifetime = .keepAlways
+        add(capture)
+        app.buttons.matching(NSPredicate(format: "label == %@", "Shows")).firstMatch.tap()
+        XCTAssertTrue(app.staticTexts["DCGTV Originals"].waitForExistence(timeout: 5))
+        homeTab.tap()
+        XCTAssertTrue(homeTab.isSelected)
+    }
+
 }

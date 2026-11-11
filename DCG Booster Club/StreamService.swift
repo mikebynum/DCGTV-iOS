@@ -19,6 +19,18 @@ struct DCGStream: Codable, Identifiable {
         return DCGDateParsing.flexibleISO8601(scheduledStart)
     }
 
+    // Home already shows the scheduled date below the title. Strip only the
+    // recognizable trailing CMS date/time suffix, keeping other title text.
+    var featuredTitle: String {
+        guard startDate != nil else { return title }
+        let concise = title.replacingOccurrences(
+            of: #"\s+\d{1,2}[-/]\d{1,2}[-/]\d{2,4}(?:\s*@\s*\d{1,2}:\d{2}(?:\s*[AaPp][Mm])?)?\s*$"#,
+            with: "",
+            options: .regularExpression
+        ).trimmingCharacters(in: .whitespacesAndNewlines)
+        return concise.isEmpty ? title : concise
+    }
+
     var isLive: Bool { status.lowercased() == "live" }
 }
 
