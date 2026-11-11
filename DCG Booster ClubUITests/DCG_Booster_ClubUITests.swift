@@ -27,10 +27,14 @@ final class DCG_Booster_ClubUITests: XCTestCase {
         let app = XCUIApplication()
         app.launch()
 
-        XCTAssertTrue(app.staticTexts["Live and on demand."].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.descendants(matching: .any)["DCGTV livestreams presented by Charter Bank"].exists)
+        XCTAssertTrue(app.images["dcgtv.home.hero"].waitForExistence(timeout: 10))
+        let hero = app.images["dcgtv.home.hero"]
+        XCTAssertEqual(hero.frame.width / hero.frame.height, 2, accuracy: 0.02)
+        XCTAssertGreaterThanOrEqual(hero.frame.minX, app.frame.minX)
+        XCTAssertLessThanOrEqual(hero.frame.maxX, app.frame.maxX)
+        XCTAssertFalse(app.descendants(matching: .any)["DCGTV livestreams presented by Charter Bank"].exists)
         let home = XCTAttachment(screenshot: app.screenshot())
-        home.name = "Phase 1 Home"
+        home.name = "Sponsored hero Home"
         home.lifetime = .keepAlways
         add(home)
 
@@ -48,6 +52,8 @@ final class DCG_Booster_ClubUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Upcoming DCGTV Livestreams"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "label == %@ AND selected == true", "Schedule")).firstMatch.exists)
         XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "label == %@", "Shows")).firstMatch.exists)
+        app.tabBars.buttons["Watch"].tap()
+        XCTAssertTrue(app.descendants(matching: .any)["DCGTV livestreams presented by Charter Bank"].waitForExistence(timeout: 5))
     }
 
     @MainActor
@@ -55,7 +61,7 @@ final class DCG_Booster_ClubUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
         app.launch()
-        XCTAssertTrue(app.staticTexts["Live and on demand."].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.images["dcgtv.home.hero"].waitForExistence(timeout: 10))
         let screenshot = XCTAttachment(screenshot: app.screenshot())
         screenshot.name = "Home accessibility text size"
         screenshot.lifetime = .keepAlways
