@@ -431,7 +431,8 @@ private struct DCGHomeBrandHeader: View {
     let topInset: CGFloat
 
     var body: some View {
-        VStack(spacing: 0) {
+        // A one-point overlap prevents a fractional-pixel seam at the join.
+        VStack(spacing: -1) {
             if topInset > 0 {
                 GeometryReader { geometry in
                     Image("DCGTVHomeHero")
