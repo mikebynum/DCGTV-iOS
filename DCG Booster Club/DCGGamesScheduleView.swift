@@ -20,6 +20,25 @@ struct DCGExternalStream: Codable {
     }
 }
 
+struct DCGResolvedStream: Codable {
+    let title: String
+    let url: String
+    let status: String
+    let scheduledStart: String?
+    enum CodingKeys: String, CodingKey {
+        case title, url, status
+        case scheduledStart = "scheduled_start"
+    }
+    var validURL: URL? {
+        guard let components = URLComponents(string: url),
+              components.scheme?.lowercased() == "https",
+              components.host != nil,
+              components.user == nil, components.password == nil
+        else { return nil }
+        return components.url
+    }
+}
+
 struct DCGGame: Codable, Identifiable {
 
     let id: String
@@ -31,10 +50,12 @@ struct DCGGame: Codable, Identifiable {
     let status: String?
     let url: String?
     let externalStream: DCGExternalStream?
+    let dcgtvStream: DCGResolvedStream?
 
     enum CodingKeys: String, CodingKey {
         case id, title, sport, level, start, location, status, url
         case externalStream = "external_stream"
+        case dcgtvStream = "dcgtv_stream"
     }
 
     var displayTitle: String {
@@ -483,8 +504,7 @@ struct DCGGameCard: View {
             }
 
             // Only display a DCGTV broadcast for a unique, verified match.
-            if let stream,
-               let streamURL = URL(string: stream.url),
+            if let streamURL = game.dcgtvStream?.validURL ?? stream.flatMap({ URL(string: $0.url) }),
                streamURL.scheme?.lowercased() == "https" {
 
                 Link(destination: streamURL) {
@@ -591,6 +611,7 @@ struct DCGGameDetailView: View {
     @Environment(\.dismiss) private var dismiss
 
     private var dcgtvURL: URL? {
+        if let resolved = game.dcgtvStream?.validURL { return resolved }
         guard let stream, let url = URL(string: stream.url),
               url.scheme?.lowercased() == "https",
               url.host != nil else { return nil }
