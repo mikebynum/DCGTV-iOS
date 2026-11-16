@@ -306,7 +306,8 @@ struct DCG_Booster_ClubTests {
 struct DCGScheduleFilterTests {
     private func game(_ id: String, sport: String = "Football", level: String = "Varsity", start: String) -> DCGGame {
         DCGGame(id: id, title: "Football: DCG vs Valley (Varsity)", sport: sport,
-                level: level, start: start, location: nil, status: nil, url: nil, externalStream: nil)
+                level: level, start: start, location: nil, status: nil, url: nil,
+                externalStream: nil, dcgtvStream: nil)
     }
 
     @Test func selectionsKeepTodayAndUndatedAndRespectFavorites() {
