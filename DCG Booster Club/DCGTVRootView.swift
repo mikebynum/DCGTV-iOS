@@ -521,6 +521,7 @@ private struct DCGHomeGameCard: View {
     let onShowDetails: () -> Void
 
     private var broadcastURL: URL? {
+        if let resolved = game.dcgtvStream?.validURL { return resolved }
         guard let stream,
               let url = URL(string: stream.url),
               url.scheme?.lowercased() == "https"
